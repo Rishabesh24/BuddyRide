@@ -42,7 +42,7 @@ export function Navbar() {
 
   // Update mode based on current URL path
   React.useEffect(() => {
-    if (pathname.startsWith("/driver")) {
+    if (pathname?.startsWith("/driver")) {
       setUserMode("driver");
     } else {
       setUserMode("passenger");

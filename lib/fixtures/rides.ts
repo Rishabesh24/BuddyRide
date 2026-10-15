@@ -121,11 +121,11 @@ export const SEED_VEHICLES: Vehicle[] = [
   },
 ];
 
-// Helper to get dynamically relative dates (today, tomorrow, +2 days)
+// Helper to get deterministic dates across server & browser
 const getIsoDate = (dayOffset: number, hour: number, minute: number): string => {
-  const d = new Date();
+  const d = new Date("2026-10-16T00:00:00Z");
   d.setDate(d.getDate() + dayOffset);
-  d.setHours(hour, minute, 0, 0);
+  d.setUTCHours(hour, minute, 0, 0);
   return d.toISOString();
 };
 

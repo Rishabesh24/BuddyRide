@@ -36,7 +36,7 @@ function SearchResultsContent() {
     searchParams.get("destination") || "San Jose"
   );
   const [dateInput, setDateInput] = React.useState(
-    searchParams.get("date") || new Date().toISOString().split("T")[0]
+    searchParams.get("date") || "2026-10-16"
   );
   const [seatsInput, setSeatsInput] = React.useState(
     searchParams.get("seats") || "1"

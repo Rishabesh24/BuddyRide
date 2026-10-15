@@ -55,6 +55,7 @@ export function formatDateTime(isoString: string): string {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
+      timeZone: "UTC",
     }).format(date);
   } catch {
     return isoString;
@@ -71,6 +72,7 @@ export function formatDate(isoString: string): string {
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
     }).format(date);
   } catch {
     return isoString;
@@ -87,6 +89,7 @@ export function formatTime(isoString: string): string {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
+      timeZone: "UTC",
     }).format(date);
   } catch {
     return isoString;

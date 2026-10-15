@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen flex flex-col bg-commuter-50 text-commuter-900 antialiased selection:bg-mobility-100 selection:text-mobility-900">
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <body className="min-h-screen flex flex-col bg-commuter-50 text-commuter-900 antialiased selection:bg-mobility-100 selection:text-mobility-900" suppressHydrationWarning>
         <ToastProvider>
           <Navbar />
           <main className="flex-1 flex flex-col">{children}</main>

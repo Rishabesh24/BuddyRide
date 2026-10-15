@@ -54,9 +54,7 @@ export default function PublishRidePage() {
     },
   ]);
 
-  const [departureDate, setDepartureDate] = React.useState(
-    new Date(Date.now() + 86400000).toISOString().split("T")[0]
-  );
+  const [departureDate, setDepartureDate] = React.useState("2026-10-17");
   const [departureTime, setDepartureTime] = React.useState("08:00");
   const [vehicleId, setVehicleId] = React.useState(SEED_VEHICLES[0].id);
   const [totalSeats, setTotalSeats] = React.useState(3);
