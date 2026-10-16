@@ -80,41 +80,51 @@ $$\text{Total Passenger Charge} = \text{Subtotal} + \text{Platform Fee}$$
 
 ---
 
-## 4. Primary User Journeys
+## 4. Role-Based Access Control (RBAC) & Dedicated Portals
 
-### 1. Passenger Ride Discovery & Split Map View (`/rides`)
+RouteShare strictly separates user workspaces through verified authentication and route guards (`RoleGuard`):
+
+### 1. Public Landing Page & 3 Dedicated Portals (`/`, `/login`, `/signup`)
+- **👤 Passenger Portal:** Book Auto, Bike Taxi & Cabs across Tamil Nadu hubs with upfront ₹ fares and instant start OTPs.
+- **🚕 Driver Partner Console:** Online/offline dispatch mode, incoming requests along corridor, start PIN verification, and ₹ earnings tracker.
+- **🛡️ Operations & Safety HQ:** Command center for driver KYC verification, SOS alerts, and network GMV metrics.
+- **1-Click Demo Evaluation:** Login screen includes instant autofill chips for evaluation without manual password entry:
+  - Rider: `rider@routeshare.in` / `Password123!`
+  - Driver: `driver@routeshare.in` / `Password123!`
+  - Admin: `admin@routeshare.in` / `AdminSecure2026!`
+
+### 2. Security & 4-Digit Start OTP Protocol (`components/auth/role-guard.tsx`)
+- **Authentication Barrier:** Unauthenticated access to protected routes (`/driver`, `/driver/publish`, `/admin`, `/bookings`, `/profile`) is intercepted with a clean sign-in prompt.
+- **HTTP 403 Forbidden Shield:** If an authenticated passenger attempts to access administrative or driver endpoints, access is blocked with a 403 screen displaying role mismatch details.
+- **Start PIN Verification:** Rides only begin when the passenger gives their unique 4-digit start OTP to the driver inside the car (Uber/Ola security model).
+
+### 3. Tamil Nadu Transit Corridors & Mobility Tiers
+- **Real Transit Hubs:** 18 localized transit nodes including Chennai Airport (MAA), Chennai Central (MAS), T. Nagar Panagal Park, CMBT Koyambedu, Guindy Industrial Estate, OMR Siruseri IT Park, Coimbatore Gandhipuram, and Pondicherry ECR.
+- **6 Indian Mobility Options:**
+  - 🛵 **Bike Taxi** (1 seat · ₹25 base · ₹7/km)
+  - 🛺 **Namma Auto** (3 seats · ₹40 base · ₹12/km)
+  - 🚗 **Mini Commute** (4 seats · ₹70 base · ₹15/km)
+  - 🚘 **Prime Sedan** (4 seats · ₹110 base · ₹18/km)
+  - 🚙 **Prime SUV** (6 seats · ₹160 base · ₹24/km)
+  - 🚐 **Corridor Shuttle** (12 seats · ₹60 base · ₹8/km)
+
+### 4. Passenger Ride Discovery & Split Map View (`/rides`)
 - Dual-pane layout on desktop: scrollable faceted results on the left, synchronized Leaflet OpenStreetMap on the right.
-- Real-time filters: Price cap, time of day (Morning / Afternoon / Evening), sort by Compatibility Score, Lowest Price, Shortest Detour, or Earliest Departure.
-- Responsive mobile switch between list view and map view with zero horizontal overflow.
+- Real-time filters: Price cap, vehicle tier, time of day (Morning / Afternoon / Evening), and sorting.
 
-### 2. Ride Detail & Booking Reservation (`/rides/[id]`)
-- Full route timeline featuring origin, intermediate waypoints, and drop-off destinations.
-- Interactive seat capacity picker with dynamic live updating fare calculation table.
-- Verified driver biography, review count, rating average, and vehicle specifications (Make, Model, License Plate, Year, Color).
-- Instant seat reservation submission with optimistic state updates and in-app toast alerts.
+### 5. Driver Dashboard & Request Center (`/driver`)
+- Online / Offline toggle with real-time driver availability.
+- **Actionable Booking Request Queue:** Displays incoming requests, detour impact, driver payout in ₹, and 1-click **Accept** / **Decline** actions.
+- **Live OTP Verification Modal:** Driver enters passenger 4-digit OTP to transition trip status from `confirmed` to `in_progress`.
 
-### 3. Driver Dashboard & Request Center (`/driver`)
-- Live summary of scheduled journeys and passenger manifests.
-- **Actionable Booking Request Queue:** Displays incoming passenger requests, detour impact in kilometers, driver earnings payout, and 1-click **Accept Passenger** / **Decline** actions.
-- Automatic atomic seat decrementing upon acceptance.
+### 6. Guided Ride Publishing Wizard (`/driver/publish`)
+- Step-by-step guided wizard for corridor routes, waypoints, vehicle tier, and detour tolerance.
 
-### 4. Guided Ride Publishing Wizard (`/driver/publish`)
-- Step-by-step guided wizard:
-  1. Route coordinates, addresses, and highway waypoints with interactive map preview.
-  2. Travel date, departure time, and vehicle selection.
-  3. Seat capacity, base price per km, and maximum acceptable detour threshold.
-  4. Real-time trip economics summary and publication.
+### 7. Passenger Booking Manager (`/bookings`)
+- Live ride status, vehicle information, driver phone dialer, and unique 4-digit start OTP display.
 
-### 5. Passenger Booking Manager (`/bookings`)
-- Filter tabs for *All Reservations*, *Confirmed*, *Pending Confirmation*, and *Cancelled*.
-- Pickup coordinates, departure times, driver vehicle details, and cancellation action adhering to the 2-hour policy.
-
-### 6. Profile & Vehicle Garage (`/profile`)
-- Personal commuter bio, rating stats, contact details, and vehicle registration manager.
-
-### 7. Administrative Moderation (`/admin`)
-- Platform operational metrics (active commuters, active scheduled rides, network occupancy rate %, open reports).
-- Incident resolution queue with action triggers.
+### 8. Administrative Moderation HQ (`/admin`)
+- Platform operational metrics (active commuters, active vehicles, GMV in ₹, driver KYC documents, open safety reports).
 
 ---
 

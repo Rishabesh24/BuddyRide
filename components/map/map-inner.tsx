@@ -72,8 +72,8 @@ export default function MapInner({
   dropoffLocation,
   routePolyline,
   className,
-  center = [37.7749, -122.4194],
-  zoom = 10,
+  center = [13.0827, 80.2707], // Chennai, Tamil Nadu
+  zoom = 11,
 }: InteractiveMapProps) {
   // Compute polyline coordinates from points if not explicitly provided
   const polylineCoords: [number, number][] = routePolyline ?? (

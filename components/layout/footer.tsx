@@ -30,27 +30,27 @@ export function Footer() {
           {/* Col 2: Commuter Corridors */}
           <div className="space-y-2.5">
             <h4 className="text-xs font-bold uppercase tracking-wider text-commuter-900">
-              Active Commuter Corridors
+              Tamil Nadu Corridors
             </h4>
             <ul className="space-y-1.5 text-xs text-commuter-600">
               <li>
-                <Link href="/rides?from=San+Francisco&to=San+Jose" className="hover:text-mobility-600 transition-colors">
-                  San Francisco ➔ San Jose (US-101)
+                <Link href="/rides?origin=Chennai+Airport&destination=OMR+Siruseri" className="hover:text-mobility-600 transition-colors">
+                  Airport ➔ OMR Siruseri IT Park
                 </Link>
               </li>
               <li>
-                <Link href="/rides?from=San+Francisco&to=Palo+Alto" className="hover:text-mobility-600 transition-colors">
-                  Hayes Valley ➔ Stanford Tech Park
+                <Link href="/rides?origin=Chennai+Central&destination=T.+Nagar" className="hover:text-mobility-600 transition-colors">
+                  Chennai Central ➔ T. Nagar
                 </Link>
               </li>
               <li>
-                <Link href="/rides?from=Seattle&to=Bellevue" className="hover:text-mobility-600 transition-colors">
-                  Seattle ➔ Bellevue (I-90 Corridor)
+                <Link href="/rides?origin=OMR+Sholinganallur&destination=Pondicherry" className="hover:text-mobility-600 transition-colors">
+                  Chennai ➔ Pondicherry (ECR Route)
                 </Link>
               </li>
               <li>
-                <Link href="/rides?from=San+Francisco&to=Sunnyvale" className="hover:text-mobility-600 transition-colors">
-                  Mission District ➔ Sunnyvale
+                <Link href="/rides?origin=Coimbatore&destination=Saravanampatti" className="hover:text-mobility-600 transition-colors">
+                  Coimbatore ➔ Saravanampatti IT SEZ
                 </Link>
               </li>
             </ul>
@@ -89,12 +89,12 @@ export function Footer() {
             <p className="text-xs text-commuter-500 leading-relaxed">
               Every driver is verified with vehicle capacity locks to eliminate double-booking. Fares strictly allocate travel costs with zero predatory surge pricing.
             </p>
-            <div className="pt-1">
+            <div className="pt-1 flex flex-col space-y-1">
               <Link
-                href="/admin"
+                href="/login?role=admin"
                 className="inline-flex items-center space-x-1 text-xs font-semibold text-commuter-700 hover:text-mobility-600"
               >
-                <span>Operational Moderation Dashboard</span>
+                <span>Staff Operations Portal (RBAC)</span>
                 <span>➔</span>
               </Link>
             </div>

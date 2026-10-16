@@ -1,22 +1,22 @@
-// Route Verification Script
+// Route Verification Script (Tamil Nadu Transit Network)
 const routes = [
   '/',
   '/rides',
-  '/rides/ride-sf-sjc-01',
+  '/rides/ride-omr-sedan-01',
   '/bookings',
   '/driver',
   '/driver/publish',
   '/profile',
   '/admin',
   '/api/rides',
-  '/api/rides/search?originLat=37.77&originLng=-122.41&destLat=37.33&destLng=-121.89',
+  '/api/rides/search?origin=Chennai+Airport&destination=OMR+Siruseri',
   '/api/notifications',
   '/api/admin/stats',
   '/api/admin/reports',
 ];
 
 async function verifyRoutes() {
-  console.log('Verifying RouteShare Application Endpoints on http://localhost:3000:');
+  console.log('Verifying RouteShare Tamil Nadu Application Endpoints on http://localhost:3000:');
   let passed = 0;
   for (const route of routes) {
     try {

@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/toast";
 import { SEED_VEHICLES } from "@/lib/fixtures/rides";
 import { calculateHaversineDistance } from "@/features/matching/engine";
 import { formatCurrency, formatDistance, formatDuration } from "@/lib/utils";
+import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function PublishRidePage() {
   const router = useRouter();
@@ -34,33 +35,33 @@ export default function PublishRidePage() {
   const [currentStep, setCurrentStep] = React.useState<number>(1);
 
   // Form State
-  const [originAddress, setOriginAddress] = React.useState("Market St & 4th St");
-  const [originCity, setOriginCity] = React.useState("San Francisco");
-  const [originLat, setOriginLat] = React.useState(37.7858);
-  const [originLng, setOriginLng] = React.useState(-122.4065);
+  const [originAddress, setOriginAddress] = React.useState("Guindy Kathipara Junction & Metro");
+  const [originCity, setOriginCity] = React.useState("Chennai");
+  const [originLat, setOriginLat] = React.useState(13.0067);
+  const [originLng, setOriginLng] = React.useState(80.2038);
 
-  const [destAddress, setDestAddress] = React.useState("San Pedro Square");
-  const [destCity, setDestCity] = React.useState("San Jose");
-  const [destLat, setDestLat] = React.useState(37.3364);
-  const [destLng, setDestLng] = React.useState(-121.8938);
+  const [destAddress, setDestAddress] = React.useState("OMR Siruseri SIPCOT IT Park (Navalur)");
+  const [destCity, setDestCity] = React.useState("Chennai");
+  const [destLat, setDestLat] = React.useState(12.8465);
+  const [destLng, setDestLng] = React.useState(80.2263);
 
   const [waypoints, setWaypoints] = React.useState<
     Array<{ address: string; lat: number; lng: number }>
   >([
     {
-      address: "Palo Alto Transit Center",
-      lat: 37.4431,
-      lng: -122.1649,
+      address: "OMR Sholinganallur ELCOT Junction",
+      lat: 12.9010,
+      lng: 80.2279,
     },
   ]);
 
   const [departureDate, setDepartureDate] = React.useState("2026-10-17");
-  const [departureTime, setDepartureTime] = React.useState("08:00");
+  const [departureTime, setDepartureTime] = React.useState("08:30");
   const [vehicleId, setVehicleId] = React.useState(SEED_VEHICLES[0].id);
   const [totalSeats, setTotalSeats] = React.useState(3);
-  const [basePricePerKm, setBasePricePerKm] = React.useState(0.18);
-  const [maxDetourKm, setMaxDetourKm] = React.useState(12.0);
-  const [notes, setNotes] = React.useState("Daily work commute. Quiet car, non-smoker, trunk space available.");
+  const [basePricePerKm, setBasePricePerKm] = React.useState(18); // ₹18/km
+  const [maxDetourKm, setMaxDetourKm] = React.useState(4.0);
+  const [notes, setNotes] = React.useState("Daily IT corridor carpool. AC on, smooth driving along OMR expressway.");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Add waypoint helper
@@ -68,9 +69,9 @@ export default function PublishRidePage() {
     setWaypoints([
       ...waypoints,
       {
-        address: "San Mateo Caltrain Station",
-        lat: 37.5684,
-        lng: -122.3242,
+        address: "Tidel Park & Thiruvanmiyur MRTS",
+        lat: 12.9892,
+        lng: 80.2464,
       },
     ]);
   };
@@ -178,7 +179,8 @@ export default function PublishRidePage() {
   };
 
   return (
-    <div className="flex-1 bg-commuter-50 py-8 px-4 sm:px-6 lg:px-8">
+    <RoleGuard requiredRole="driver" portalName="Corridor Publisher">
+      <div className="flex-1 bg-commuter-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center space-x-2 text-xs font-medium text-commuter-500">
@@ -544,5 +546,6 @@ export default function PublishRidePage() {
         </form>
       </div>
     </div>
+    </RoleGuard>
   );
 }

@@ -8,7 +8,6 @@ import {
   MapPin,
   Calendar,
   Users,
-  Filter,
   SlidersHorizontal,
   Clock,
   ArrowUpDown,
@@ -17,12 +16,14 @@ import {
   Loader2,
   CheckCircle,
   Info,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { InteractiveMap } from "@/components/map/interactive-map";
-import { MatchResult } from "@/features/types";
+import { MatchResult, TAMIL_NADU_HUBS, VEHICLE_TIERS, VehicleType } from "@/features/types";
 import { formatCurrency, formatDistance, formatDuration, formatTime } from "@/lib/utils";
 
 function SearchResultsContent() {
@@ -30,16 +31,19 @@ function SearchResultsContent() {
 
   // Search form values from query string
   const [originInput, setOriginInput] = React.useState(
-    searchParams.get("origin") || "San Francisco"
+    searchParams.get("origin") || "Chennai International Airport (MAA)"
   );
   const [destInput, setDestInput] = React.useState(
-    searchParams.get("destination") || "San Jose"
+    searchParams.get("destination") || "OMR Siruseri SIPCOT IT Park (Navalur)"
   );
   const [dateInput, setDateInput] = React.useState(
-    searchParams.get("date") || "2026-10-16"
+    searchParams.get("date") || "2026-10-17"
   );
   const [seatsInput, setSeatsInput] = React.useState(
     searchParams.get("seats") || "1"
+  );
+  const [vehicleFilter, setVehicleFilter] = React.useState<VehicleType | "all">(
+    (searchParams.get("vehicle") as VehicleType) || "all"
   );
 
   // Results & Loading State
@@ -48,7 +52,7 @@ function SearchResultsContent() {
   const [selectedRideId, setSelectedRideId] = React.useState<string | null>(null);
 
   // Filters State
-  const [maxPrice, setMaxPrice] = React.useState<number>(50);
+  const [maxPrice, setMaxPrice] = React.useState<number>(1000);
   const [timeOfDay, setTimeOfDay] = React.useState<"all" | "morning" | "afternoon" | "evening">("all");
   const [sortBy, setSortBy] = React.useState<"compatibility" | "price_asc" | "departure_time" | "detour_asc">("compatibility");
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
@@ -57,24 +61,9 @@ function SearchResultsContent() {
   const fetchSearchResults = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      // Default to SF -> SJ coordinates for demo queries if text matching
-      let origLat = 37.7749;
-      let origLng = -122.4194;
-      let destLat = 37.3382;
-      let destLng = -121.8863;
-
-      if (originInput.toLowerCase().includes("seattle")) {
-        origLat = 47.6114;
-        origLng = -122.3370;
-        destLat = 47.6144;
-        destLng = -122.2014;
-      }
-
       const params = new URLSearchParams({
-        originLat: origLat.toString(),
-        originLng: origLng.toString(),
-        destLat: destLat.toString(),
-        destLng: destLng.toString(),
+        origin: originInput,
+        destination: destInput,
         date: dateInput,
         seats: seatsInput,
       });
@@ -102,6 +91,11 @@ function SearchResultsContent() {
   const filteredResults = React.useMemo(() => {
     return results
       .filter((m) => {
+        // Vehicle type filter
+        if (vehicleFilter !== "all" && m.ride.vehicleType !== vehicleFilter) {
+          return false;
+        }
+
         // Price filter
         if (m.totalCharge > maxPrice) return false;
 
@@ -124,7 +118,7 @@ function SearchResultsContent() {
         }
         return 0;
       });
-  }, [results, maxPrice, timeOfDay, sortBy]);
+  }, [results, vehicleFilter, maxPrice, timeOfDay, sortBy]);
 
   // Selected ride for interactive map
   const activeSelectedMatch = results.find((m) => m.rideId === selectedRideId) ?? results[0];
@@ -132,7 +126,7 @@ function SearchResultsContent() {
   return (
     <div className="flex-1 flex flex-col bg-commuter-50">
       {/* Top Search & Filter Bar */}
-      <section className="bg-white border-b border-commuter-200 py-4 px-4 sm:px-6 lg:px-8 shadow-sm sticky top-16 z-30">
+      <section className="bg-white border-b border-commuter-200 py-4 px-4 sm:px-6 lg:px-8 shadow-xs sticky top-16 z-30">
         <div className="max-w-7xl mx-auto">
           <form
             onSubmit={(e) => {
@@ -148,11 +142,17 @@ function SearchResultsContent() {
               </span>
               <input
                 type="text"
+                list="rides-origin-hubs"
                 value={originInput}
                 onChange={(e) => setOriginInput(e.target.value)}
-                placeholder="From: City or station"
+                placeholder="From: Station or area"
                 className="w-full h-10 pl-9 pr-3 rounded-lg border border-commuter-200 text-xs font-semibold text-commuter-900 focus:border-mobility-600 focus:ring-1 focus:ring-mobility-600"
               />
+              <datalist id="rides-origin-hubs">
+                {TAMIL_NADU_HUBS.map((h) => (
+                  <option key={h.id} value={h.name} />
+                ))}
+              </datalist>
             </div>
 
             {/* Destination */}
@@ -162,11 +162,17 @@ function SearchResultsContent() {
               </span>
               <input
                 type="text"
+                list="rides-dest-hubs"
                 value={destInput}
                 onChange={(e) => setDestInput(e.target.value)}
-                placeholder="To: City or campus"
+                placeholder="To: Destination or IT Park"
                 className="w-full h-10 pl-9 pr-3 rounded-lg border border-commuter-200 text-xs font-semibold text-commuter-900 focus:border-mobility-600 focus:ring-1 focus:ring-mobility-600"
               />
+              <datalist id="rides-dest-hubs">
+                {TAMIL_NADU_HUBS.map((h) => (
+                  <option key={h.id} value={h.name} />
+                ))}
+              </datalist>
             </div>
 
             {/* Date */}
@@ -201,56 +207,63 @@ function SearchResultsContent() {
 
             {/* Refresh Button */}
             <div>
-              <Button type="submit" size="sm" className="w-full h-10 font-bold" isLoading={isLoading}>
+              <Button type="submit" size="sm" className="w-full h-10 font-bold bg-commuter-900 hover:bg-black text-white" isLoading={isLoading}>
                 Update Search
               </Button>
             </div>
           </form>
 
-          {/* Faceted Filter Toolbar */}
-          <div className="mt-3 pt-3 border-t border-commuter-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-            {/* Filter pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-commuter-500 uppercase tracking-wider text-[11px] flex items-center">
-                <SlidersHorizontal className="w-3.5 h-3.5 mr-1" />
-                Filters:
-              </span>
+          {/* Vehicle Category Filter Tabs (Ola / Uber style) */}
+          <div className="mt-3 pt-3 border-t border-commuter-100 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setVehicleFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                vehicleFilter === "all"
+                  ? "bg-commuter-900 text-white"
+                  : "bg-commuter-100 text-commuter-700 hover:bg-commuter-200"
+              }`}
+            >
+              All Types ({results.length})
+            </button>
 
-              {/* Time of Day */}
-              <div className="flex rounded-md border border-commuter-200 overflow-hidden bg-white">
-                {(["all", "morning", "afternoon", "evening"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTimeOfDay(t)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold capitalize transition-colors ${
-                      timeOfDay === t
-                        ? "bg-mobility-600 text-white"
-                        : "text-commuter-600 hover:bg-commuter-50"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+            {VEHICLE_TIERS.map((tier) => {
+              const count = results.filter((r) => r.ride.vehicleType === tier.type).length;
+              return (
+                <button
+                  key={tier.type}
+                  onClick={() => setVehicleFilter(tier.type)}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    vehicleFilter === tier.type
+                      ? "bg-mobility-700 text-white shadow-xs"
+                      : "bg-white border border-commuter-200 text-commuter-700 hover:bg-commuter-50"
+                  }`}
+                >
+                  <span>{tier.emoji}</span>
+                  <span>{tier.name}</span>
+                  {count > 0 && (
+                    <span className="text-[10px] opacity-75 font-mono">({count})</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-              {/* Price Cap */}
-              <div className="flex items-center space-x-1.5 bg-white px-2.5 py-1 rounded-md border border-commuter-200">
-                <span className="text-commuter-500 font-medium">Max:</span>
-                <span className="font-bold text-commuter-900">${maxPrice}</span>
-                <input
-                  type="range"
-                  min="5"
-                  max="40"
-                  step="5"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(Number(e.target.value))}
-                  className="w-16 accent-mobility-600 cursor-pointer"
-                />
-              </div>
+          {/* Secondary Sorting Toolbar */}
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="font-semibold text-commuter-500">Max Fare:</span>
+              <span className="font-bold text-commuter-900">₹{maxPrice}</span>
+              <input
+                type="range"
+                min="50"
+                max="1000"
+                step="50"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                className="w-24 accent-mobility-600 cursor-pointer"
+              />
             </div>
 
-            {/* Sort Dropdown */}
             <div className="flex items-center space-x-2">
               <span className="font-medium text-commuter-500 flex items-center">
                 <ArrowUpDown className="w-3 h-3 mr-1" />
@@ -261,8 +274,8 @@ function SearchResultsContent() {
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="bg-white border border-commuter-200 rounded-md px-2 py-1 font-semibold text-commuter-800 text-xs focus:outline-none focus:border-mobility-600"
               >
-                <option value="compatibility">Highest Compatibility</option>
-                <option value="price_asc">Lowest Fare</option>
+                <option value="compatibility">Best Match & Proximity</option>
+                <option value="price_asc">Lowest Fare (₹)</option>
                 <option value="detour_asc">Shortest Detour</option>
                 <option value="departure_time">Earliest Departure</option>
               </select>
@@ -271,205 +284,173 @@ function SearchResultsContent() {
         </div>
       </section>
 
-      {/* Mobile Segmented Toggle (List vs Map) */}
-      <div className="lg:hidden p-3 bg-commuter-100 border-b border-commuter-200 flex justify-center">
-        <div className="inline-flex rounded-lg border border-commuter-300 bg-white p-1">
-          <button
-            onClick={() => setMobileView("list")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${
-              mobileView === "list"
-                ? "bg-mobility-600 text-white"
-                : "text-commuter-600 hover:text-commuter-900"
-            }`}
-          >
-            Journey Cards ({filteredResults.length})
-          </button>
-          <button
-            onClick={() => setMobileView("map")}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${
-              mobileView === "map"
-                ? "bg-mobility-600 text-white"
-                : "text-commuter-600 hover:text-commuter-900"
-            }`}
-          >
-            Route Map
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Area: Split View on Desktop */}
+      {/* Main Split-View: Ride Cards List (Left) + Interactive Map (Right) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-full">
-          {/* Left Column: Results List (7 cols on large desktop) */}
-          <div
-            className={`lg:col-span-7 space-y-4 ${
-              mobileView === "map" ? "hidden lg:block" : "block"
-            }`}
-          >
-            <div className="flex items-center justify-between pb-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-commuter-500">
-                {filteredResults.length} Compatible {filteredResults.length === 1 ? "Journey" : "Journeys"} Found
-              </p>
-              <span className="text-xs text-commuter-400">
-                Real-time geometric waypoint scoring
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Ride Cards */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-commuter-900 flex items-center space-x-2">
+                <span>Available Rides</span>
+                <span className="text-xs bg-mobility-100 text-mobility-800 px-2 py-0.5 rounded-full font-bold">
+                  {filteredResults.length} options
+                </span>
+              </h2>
+              <span className="text-xs text-commuter-500">
+                Showing authentic Tamil Nadu routes
               </span>
             </div>
 
             {isLoading ? (
-              <div className="space-y-4 py-8">
-                {[1, 2, 3].map((n) => (
-                  <div
-                    key={n}
-                    className="h-44 rounded-xl bg-white border border-commuter-200 p-6 animate-pulse space-y-3"
-                  >
-                    <div className="h-4 bg-commuter-100 rounded w-1/3" />
-                    <div className="h-4 bg-commuter-100 rounded w-3/4" />
-                    <div className="h-4 bg-commuter-100 rounded w-1/2" />
-                  </div>
-                ))}
+              <div className="p-12 text-center bg-white rounded-2xl border border-commuter-200">
+                <Loader2 className="w-8 h-8 animate-spin text-mobility-600 mx-auto mb-3" />
+                <p className="text-sm font-bold text-commuter-800">
+                  Scanning Tamil Nadu corridors...
+                </p>
+                <p className="text-xs text-commuter-500 mt-1">
+                  Matching your route against active Auto, Bike, and Cab drivers.
+                </p>
               </div>
             ) : filteredResults.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-commuter-300 bg-white p-12 text-center">
-                <AlertCircle className="w-10 h-10 text-commuter-400 mx-auto mb-3" />
+              <div className="p-8 text-center bg-white rounded-2xl border border-commuter-200">
+                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
                 <h3 className="text-base font-bold text-commuter-900">
-                  No compatible rides found
+                  No direct vehicles found for this specific filter
                 </h3>
-                <p className="text-xs text-commuter-500 max-w-sm mx-auto mt-1">
-                  Try widening your travel date or adjusting the maximum price filter. You can also publish your own journey!
+                <p className="text-xs text-commuter-500 mt-1 max-w-sm mx-auto">
+                  Try switching the vehicle type to &quot;All Types&quot; or selecting one of our high-frequency corridors.
                 </p>
-                <div className="mt-5">
-                  <Link href="/driver/publish">
-                    <Button variant="outline" size="sm">
-                      Publish a Ride on this Route
-                    </Button>
-                  </Link>
-                </div>
+                <button
+                  onClick={() => {
+                    setVehicleFilter("all");
+                    setMaxPrice(1000);
+                  }}
+                  className="mt-4 px-4 py-2 bg-commuter-900 text-white rounded-xl text-xs font-bold hover:bg-black"
+                >
+                  Reset All Filters
+                </button>
               </div>
             ) : (
               filteredResults.map((match) => {
-                const isSelected = selectedRideId === match.rideId;
-                const { ride } = match;
+                const isSelected = match.rideId === selectedRideId;
+                const ride = match.ride;
+                const tier = VEHICLE_TIERS.find((t) => t.type === ride.vehicleType) ?? VEHICLE_TIERS[3];
 
                 return (
-                  <Card
+                  <div
                     key={match.rideId}
                     onClick={() => setSelectedRideId(match.rideId)}
-                    className={`cursor-pointer transition-all duration-150 ${
+                    className={`p-5 rounded-2xl border transition-all cursor-pointer bg-white ${
                       isSelected
-                        ? "border-mobility-600 ring-2 ring-mobility-600/20 shadow-md bg-mobility-50/10"
-                        : "hover:border-commuter-300"
+                        ? "border-mobility-600 shadow-md ring-2 ring-mobility-600/20"
+                        : "border-commuter-200 hover:border-mobility-300 shadow-xs"
                     }`}
                   >
-                    <CardContent className="p-5">
-                      {/* Card Top Row: Departure Time, Score, Price */}
-                      <div className="flex items-start justify-between pb-3 border-b border-commuter-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="text-left">
-                            <span className="text-lg font-extrabold text-commuter-900">
-                              {formatTime(ride.departureTime)}
-                            </span>
-                            <span className="block text-[11px] text-commuter-500 font-medium">
-                              {formatDuration(ride.estimatedDurationMinutes)} commute
-                            </span>
-                          </div>
-
-                          <Badge variant="mobility">
-                            {match.compatibilityScore}% Compatibility
-                          </Badge>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-xl font-extrabold text-commuter-900">
-                            {formatCurrency(match.totalCharge)}
-                          </span>
-                          <span className="block text-[10px] text-commuter-400 font-medium">
-                            total fare / seat
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Corridor Summary */}
-                      <div className="mt-3.5 space-y-2">
-                        <div className="flex items-center space-x-2 text-xs">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                          <span className="font-bold text-commuter-900">
-                            {ride.origin.city}
-                          </span>
-                          <span className="text-commuter-400">➔</span>
-                          <span className="font-bold text-commuter-900">
-                            {ride.destination.city}
-                          </span>
-                          <span className="text-commuter-400">·</span>
-                          <span className="text-commuter-500 text-[11px]">
-                            {ride.origin.address}
-                          </span>
-                        </div>
-
-                        {/* Waypoints badge info */}
-                        {ride.waypoints.length > 0 && (
-                          <div className="text-[11px] text-commuter-500 pl-4">
-                            Stops along route:{" "}
-                            {ride.waypoints.map((w) => w.address.split(",")[0]).join(" · ")}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Algorithmic Detour Explanation */}
-                      <div className="mt-3 p-2.5 rounded-lg bg-commuter-50 border border-commuter-200 text-xs flex items-start space-x-2">
-                        <Info className="w-3.5 h-3.5 text-mobility-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-commuter-700 text-[11px] leading-relaxed">
-                          {match.explanation}
-                        </p>
-                      </div>
-
-                      {/* Driver, Seats, & Action CTA */}
-                      <div className="mt-4 pt-3 border-t border-commuter-100 flex items-center justify-between">
-                        <div className="flex items-center space-x-2.5">
+                    <div className="flex items-start justify-between">
+                      {/* Driver & Vehicle */}
+                      <div className="flex items-start space-x-3.5">
+                        <div className="relative">
                           <img
                             src={ride.driver?.avatarUrl}
                             alt={ride.driver?.fullName}
-                            className="w-8 h-8 rounded-full object-cover border border-commuter-200"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-xs"
                           />
-                          <div>
-                            <p className="text-xs font-bold text-commuter-900">
-                              {ride.driver?.fullName}
-                            </p>
-                            <p className="text-[10px] text-commuter-500">
-                              {ride.vehicle?.make} {ride.vehicle?.model} · ★ {ride.driver?.ratingAverage.toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                            {ride.availableSeats} seats left
+                          <span className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full p-0.5 shadow-xs">
+                            {tier.emoji}
                           </span>
-
-                          <Link href={`/rides/${ride.id}`}>
-                            <Button size="sm" className="font-bold">
-                              Book Seat
-                            </Button>
-                          </Link>
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-sm text-commuter-900">
+                              {ride.driver?.fullName}
+                            </span>
+                            <span className="inline-flex items-center text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                              <ShieldCheck className="w-3 h-3 mr-0.5" />
+                              KYC Verified
+                            </span>
+                          </div>
+                          <p className="text-xs text-commuter-500 mt-0.5">
+                            <span className="font-bold text-amber-500">★ {ride.driver?.ratingAverage.toFixed(2)}</span>
+                            {" · "}
+                            <span>{ride.vehicle?.make} {ride.vehicle?.model}</span>
+                            {" · "}
+                            <span className="font-mono text-commuter-700 font-semibold">{ride.vehicle?.licensePlate}</span>
+                          </p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+
+                      {/* Fare in INR */}
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-commuter-400 block">
+                          Total Fare
+                        </span>
+                        <span className="text-xl font-black text-commuter-900">
+                          {formatCurrency(match.totalCharge)}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-semibold block">
+                          ⚡ Zero Surge
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Route Details */}
+                    <div className="mt-4 pt-3 border-t border-commuter-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-1.5">
+                        <div className="flex items-start space-x-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
+                          <span className="text-commuter-700 font-medium line-clamp-1">
+                            {ride.origin.address}
+                          </span>
+                        </div>
+                        <div className="flex items-start space-x-2">
+                          <span className="w-2 h-2 rounded-full bg-mobility-600 mt-1 flex-shrink-0" />
+                          <span className="text-commuter-700 font-medium line-clamp-1">
+                            {ride.destination.address}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-center sm:items-end space-y-1">
+                        <div className="flex items-center space-x-2 text-commuter-600">
+                          <Clock className="w-3.5 h-3.5 text-commuter-400" />
+                          <span>Leaves {formatTime(ride.departureTime)}</span>
+                          <span className="font-bold text-commuter-900">
+                            (~{ride.estimatedDurationMinutes}m)
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="success" className="text-[11px] font-bold">
+                            {ride.availableSeats} seats available
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="mt-4 pt-3 border-t border-commuter-100 flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 text-xs text-commuter-500">
+                        <Info className="w-3.5 h-3.5 text-mobility-600" />
+                        <span>Instant 4-digit start PIN provided upon booking</span>
+                      </div>
+                      <Link href={`/rides/${ride.id}`}>
+                        <Button size="sm" className="font-bold bg-commuter-900 hover:bg-black text-white px-4">
+                          Select {tier.name.split(" ")[0]}
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 );
               })
             )}
           </div>
 
-          {/* Right Column: Sticky Leaflet Map (5 cols on large desktop) */}
-          <div
-            className={`lg:col-span-5 sticky top-48 h-[600px] ${
-              mobileView === "list" ? "hidden lg:block" : "block"
-            }`}
-          >
-            <div className="h-full rounded-2xl overflow-hidden border border-commuter-200 shadow-md bg-white flex flex-col">
-              <div className="px-4 py-2.5 bg-commuter-900 text-white flex items-center justify-between text-xs font-semibold">
+          {/* Right Column: Live Route Map */}
+          <div className="lg:col-span-5 sticky top-36">
+            <div className="bg-white rounded-2xl border border-commuter-200 overflow-hidden shadow-xs">
+              <div className="p-3 bg-commuter-900 text-white flex items-center justify-between text-xs font-bold">
                 <span className="flex items-center space-x-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span>Interactive Route Polyline</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Tamil Nadu Corridor Map</span>
                 </span>
                 {activeSelectedMatch && (
                   <span className="text-commuter-300">
@@ -477,43 +458,18 @@ function SearchResultsContent() {
                   </span>
                 )}
               </div>
-
-              <div className="flex-1 w-full relative">
-                <InteractiveMap
-                  origin={activeSelectedMatch?.ride.origin}
-                  destination={activeSelectedMatch?.ride.destination}
-                  waypoints={activeSelectedMatch?.ride.waypoints}
-                />
+              <div className="h-[460px] w-full">
+                {activeSelectedMatch ? (
+                  <InteractiveMap
+                    origin={activeSelectedMatch.ride.origin}
+                    destination={activeSelectedMatch.ride.destination}
+                    waypoints={activeSelectedMatch.ride.waypoints}
+                    className="h-full w-full"
+                  />
+                ) : (
+                  <InteractiveMap className="h-full w-full" />
+                )}
               </div>
-
-              {activeSelectedMatch && (
-                <div className="p-3 bg-white border-t border-commuter-200 text-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-commuter-500 block text-[10px] uppercase font-bold">
-                      Route Distance
-                    </span>
-                    <span className="font-bold text-commuter-900">
-                      {formatDistance(activeSelectedMatch.ride.totalDistanceKm)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-commuter-500 block text-[10px] uppercase font-bold">
-                      Estimated Detour
-                    </span>
-                    <span className="font-bold text-emerald-700">
-                      +{formatDistance(activeSelectedMatch.totalDetourKm)} ({activeSelectedMatch.detourTimeMinutes} min)
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-commuter-500 block text-[10px] uppercase font-bold">
-                      Detour Limit
-                    </span>
-                    <span className="font-bold text-commuter-700">
-                      ≤ {activeSelectedMatch.ride.maxDetourKm} km
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -524,13 +480,7 @@ function SearchResultsContent() {
 
 export default function SearchResultsPage() {
   return (
-    <React.Suspense
-      fallback={
-        <div className="flex-1 flex items-center justify-center py-24 bg-commuter-50">
-          <Loader2 className="w-8 h-8 animate-spin text-mobility-600" />
-        </div>
-      }
-    >
+    <React.Suspense fallback={<div className="p-12 text-center text-sm">Loading search...</div>}>
       <SearchResultsContent />
     </React.Suspense>
   );

@@ -1,10 +1,11 @@
-// Resilient Repository Adapter for RouteShare
+// Resilient Repository Adapter for RouteShare (Tamil Nadu Transit Network)
 import {
   AdminStats,
   Booking,
   BookingStatus,
   InAppNotification,
   MatchResult,
+  Profile,
   ReportItem,
   Ride,
   SearchQuery,
@@ -23,7 +24,12 @@ export interface IRideRepository {
   getBookingsForDriver(driverId: string): Promise<Booking[]>;
   createBooking(bookingData: Omit<Booking, 'id' | 'createdAt' | 'updatedAt'>): Promise<Booking>;
   updateBookingStatus(bookingId: string, status: BookingStatus, reason?: string): Promise<Booking>;
+  verifyStartOtp(bookingId: string, otp: string): Promise<{ success: boolean; message: string }>;
+  completeBooking(bookingId: string): Promise<Booking>;
 
+  getDrivers(): Promise<Profile[]>;
+  getDriverById(driverId: string): Promise<Profile | null>;
+  toggleDriverOnline(driverId: string, isOnline: boolean): Promise<Profile>;
   getVehiclesForDriver(driverId: string): Promise<Vehicle[]>;
   addVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle>;
 
@@ -33,78 +39,84 @@ export interface IRideRepository {
   getAdminStats(): Promise<AdminStats>;
   getAdminReports(): Promise<ReportItem[]>;
   resolveReport(reportId: string): Promise<void>;
+  updateDriverKyc(driverId: string, verified: boolean): Promise<Profile>;
 }
 
 // In-Memory state for local/fixture mode with dynamic persistence across the session
 class LocalFixtureRepository implements IRideRepository {
   private rides: Ride[] = [...SEED_RIDES];
   private vehicles: Vehicle[] = [...SEED_VEHICLES];
+  private users: Profile[] = [...SEED_USERS];
   private bookings: Booking[] = [
     {
       id: 'b-seed-01',
-      rideId: 'ride-sf-sjc-01',
+      rideId: 'ride-omr-sedan-01',
       ride: SEED_RIDES[0],
       passengerId: 'u-demo-passenger',
-      passenger: SEED_USERS[4],
+      passenger: SEED_USERS[6], // Anand Subramanian
+      vehicleType: 'sedan',
       seatsBooked: 1,
       pickupLocation: {
-        address: 'San Mateo Transit Center',
-        city: 'San Mateo',
-        latitude: 37.5684,
-        longitude: -122.3242,
+        address: 'Guindy Kathipara Junction & Metro',
+        city: 'Chennai',
+        latitude: 13.0067,
+        longitude: 80.2038,
       },
       dropoffLocation: {
-        address: 'Palo Alto Caltrain Station',
-        city: 'Palo Alto',
-        latitude: 37.4431,
-        longitude: -122.1649,
+        address: 'OMR Sholinganallur ELCOT Junction',
+        city: 'Chennai',
+        latitude: 12.9010,
+        longitude: 80.2279,
       },
-      segmentDistanceKm: 21.2,
-      detourDistanceKm: 1.5,
-      fareAmount: 3.82,
-      platformFee: 0.50,
-      totalPaid: 4.32,
+      segmentDistanceKm: 18.5,
+      detourDistanceKm: 0.8,
+      fareAmount: 370,
+      platformFee: 18.5,
+      totalPaid: 388.5,
+      startOtp: '5829',
       status: 'confirmed',
-      createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-      updatedAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+      createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 1).toISOString(),
     },
     {
       id: 'b-seed-02',
-      rideId: 'ride-sf-sjc-01',
-      ride: SEED_RIDES[0],
-      passengerId: 'u-elena-rostova',
-      passenger: SEED_USERS[1],
-      seatsBooked: 1,
+      rideId: 'ride-airport-suv-02',
+      ride: SEED_RIDES[1],
+      passengerId: 'u-demo-passenger',
+      passenger: SEED_USERS[6],
+      vehicleType: 'suv',
+      seatsBooked: 2,
       pickupLocation: {
-        address: 'Market St & 4th St',
-        city: 'San Francisco',
-        latitude: 37.7858,
-        longitude: -122.4065,
+        address: 'Chennai International Airport (MAA)',
+        city: 'Chennai',
+        latitude: 12.9941,
+        longitude: 80.1709,
       },
       dropoffLocation: {
-        address: 'San Pedro Square Market',
-        city: 'San Jose',
-        latitude: 37.3364,
-        longitude: -121.8938,
+        address: 'T. Nagar (Pondy Bazaar)',
+        city: 'Chennai',
+        latitude: 13.0418,
+        longitude: 80.2341,
       },
-      segmentDistanceKm: 78.5,
+      segmentDistanceKm: 12.0,
       detourDistanceKm: 0.0,
-      fareAmount: 14.13,
-      platformFee: 0.71,
-      totalPaid: 14.84,
-      status: 'pending',
-      createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-      updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+      fareAmount: 580,
+      platformFee: 29,
+      totalPaid: 609,
+      startOtp: '7412',
+      status: 'completed',
+      createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 22).toISOString(),
     },
   ];
 
   private notifications: InAppNotification[] = [
     {
       id: 'notif-01',
-      userId: 'u-alex-mercer',
-      title: 'New Booking Request',
-      message: 'Elena Rostova requested 1 seat on your morning trip to San Jose.',
-      type: 'booking_request',
+      userId: 'u-karthik-sedan',
+      title: 'New Commuter Confirmed',
+      message: 'Anand Subramanian confirmed 1 seat for OMR Sholinganallur corridor.',
+      type: 'booking_confirmed',
       linkUrl: '/driver',
       isRead: false,
       createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
@@ -112,23 +124,23 @@ class LocalFixtureRepository implements IRideRepository {
     {
       id: 'notif-02',
       userId: 'u-demo-passenger',
-      title: 'Booking Confirmed!',
-      message: 'Alex Mercer approved your ride to Palo Alto. Departure at 7:45 AM.',
+      title: 'Ride Confirmed — Start OTP 5829',
+      message: 'Karthik Raja (Swift Dzire TN 10 BX 9014) is on the way. Share OTP 5829 at pickup.',
       type: 'booking_confirmed',
       linkUrl: '/bookings',
-      isRead: true,
-      createdAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+      isRead: false,
+      createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     },
   ];
 
   private reports: ReportItem[] = [
     {
       id: 'rep-01',
-      reporterId: 'u-marcus-chen',
-      targetId: 'ride-sf-paloalto-02',
+      reporterId: 'u-demo-passenger',
+      targetId: 'ride-tnagar-auto-03',
       targetType: 'ride',
-      reason: 'Question regarding pickup location accessibility.',
-      status: 'open',
+      reason: 'Driver requested exact landmark update near Panagal Park gate.',
+      status: 'resolved',
       createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
     },
   ];
@@ -207,7 +219,7 @@ class LocalFixtureRepository implements IRideRepository {
       .map((b) => ({
         ...b,
         ride: this.rides.find((r) => r.id === b.rideId),
-        passenger: SEED_USERS.find((u) => u.id === b.passengerId) ?? b.passenger,
+        passenger: this.users.find((u) => u.id === b.passengerId) ?? b.passenger,
       }))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
@@ -220,10 +232,17 @@ class LocalFixtureRepository implements IRideRepository {
       throw new Error('Insufficient seats available');
     }
 
+    // Generate secure 4-digit start OTP
+    const startOtp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Confirm seat reservation
+    ride.availableSeats -= bookingData.seatsBooked;
+
     const newBooking: Booking = {
       ...bookingData,
       id: `b-${Date.now().toString(36)}`,
-      status: 'pending',
+      startOtp,
+      status: 'confirmed',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ride,
@@ -235,10 +254,22 @@ class LocalFixtureRepository implements IRideRepository {
     this.notifications.push({
       id: `notif-${Date.now().toString(36)}`,
       userId: ride.driverId,
-      title: 'New Booking Request',
-      message: `A commuter requested ${bookingData.seatsBooked} seat(s) for your trip to ${ride.destination.city}.`,
+      title: 'New Confirmed Ride Booking!',
+      message: `A commuter booked ${bookingData.seatsBooked} seat(s) to ${bookingData.dropoffLocation.address}. OTP: ${startOtp}`,
       type: 'booking_request',
       linkUrl: '/driver',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Notify passenger
+    this.notifications.push({
+      id: `notif-${Date.now().toString(36)}-p`,
+      userId: bookingData.passengerId,
+      title: `Ride Booked! Start OTP: ${startOtp}`,
+      message: `Your ride is confirmed with driver ${ride.driver?.fullName ?? 'Driver'}. Share OTP ${startOtp} when boarding.`,
+      type: 'booking_confirmed',
+      linkUrl: '/bookings',
       isRead: false,
       createdAt: new Date().toISOString(),
     });
@@ -257,45 +288,73 @@ class LocalFixtureRepository implements IRideRepository {
     const ride = this.rides.find((r) => r.id === booking.rideId);
     if (!ride) throw new Error('Associated ride not found');
 
-    // Atomic seat capacity adjustment
     if (status === 'confirmed' && booking.status !== 'confirmed') {
       if (ride.availableSeats < booking.seatsBooked) {
-        throw new Error('Insufficient seats remaining to confirm booking');
+        throw new Error('Insufficient seats remaining');
       }
       ride.availableSeats -= booking.seatsBooked;
-
-      this.notifications.push({
-        id: `notif-${Date.now().toString(36)}`,
-        userId: booking.passengerId,
-        title: 'Booking Confirmed!',
-        message: `Your ride from ${booking.pickupLocation.city} to ${booking.dropoffLocation.city} is confirmed!`,
-        type: 'booking_confirmed',
-        linkUrl: '/bookings',
-        isRead: false,
-        createdAt: new Date().toISOString(),
-      });
     } else if (status === 'cancelled' || status === 'rejected') {
-      if (booking.status === 'confirmed') {
-        // Return seats
+      if (booking.status === 'confirmed' || booking.status === 'in_progress') {
         ride.availableSeats += booking.seatsBooked;
       }
       if (reason) booking.cancellationReason = reason;
-
-      this.notifications.push({
-        id: `notif-${Date.now().toString(36)}`,
-        userId: booking.passengerId,
-        title: status === 'rejected' ? 'Booking Request Declined' : 'Booking Cancelled',
-        message: `Trip request status updated to ${status}. ${reason ? `Reason: ${reason}` : ''}`,
-        type: status === 'rejected' ? 'booking_rejected' : 'booking_cancelled',
-        linkUrl: '/bookings',
-        isRead: false,
-        createdAt: new Date().toISOString(),
-      });
     }
 
     booking.status = status;
     booking.updatedAt = new Date().toISOString();
     return booking;
+  }
+
+  async verifyStartOtp(bookingId: string, otp: string): Promise<{ success: boolean; message: string }> {
+    const booking = this.bookings.find((b) => b.id === bookingId);
+    if (!booking) return { success: false, message: 'Booking not found' };
+
+    if (booking.startOtp !== otp.trim()) {
+      return { success: false, message: 'Invalid 4-digit OTP. Please ask rider for correct PIN.' };
+    }
+
+    booking.status = 'in_progress';
+    booking.updatedAt = new Date().toISOString();
+
+    const ride = this.rides.find((r) => r.id === booking.rideId);
+    if (ride) ride.status = 'in_progress';
+
+    return { success: true, message: 'OTP verified successfully! Trip is now in progress.' };
+  }
+
+  async completeBooking(bookingId: string): Promise<Booking> {
+    const booking = this.bookings.find((b) => b.id === bookingId);
+    if (!booking) throw new Error('Booking not found');
+
+    booking.status = 'completed';
+    booking.updatedAt = new Date().toISOString();
+
+    // Credit driver
+    const ride = this.rides.find((r) => r.id === booking.rideId);
+    if (ride) {
+      const driver = this.users.find((u) => u.id === ride.driverId);
+      if (driver) {
+        driver.todayEarnings = (driver.todayEarnings ?? 0) + booking.fareAmount;
+      }
+    }
+
+    return booking;
+  }
+
+  async getDrivers(): Promise<Profile[]> {
+    return this.users.filter((u) => u.role === 'driver');
+  }
+
+  async getDriverById(driverId: string): Promise<Profile | null> {
+    const driver = this.users.find((u) => u.id === driverId);
+    return driver ?? null;
+  }
+
+  async toggleDriverOnline(driverId: string, isOnline: boolean): Promise<Profile> {
+    const driver = this.users.find((u) => u.id === driverId);
+    if (!driver) throw new Error('Driver not found');
+    driver.isOnline = isOnline;
+    return driver;
   }
 
   async getVehiclesForDriver(driverId: string): Promise<Vehicle[]> {
@@ -328,9 +387,9 @@ class LocalFixtureRepository implements IRideRepository {
     const occupancyRate = totalCapacity > 0 ? (occupiedSeats / totalCapacity) * 100 : 0;
 
     return {
-      activeUsers: SEED_USERS.length + 120,
-      activeRides: this.rides.filter((r) => r.status === 'scheduled').length,
-      totalBookings: this.bookings.length + 38,
+      activeUsers: this.users.length + 340,
+      activeRides: this.rides.filter((r) => r.status === 'scheduled' || r.status === 'in_progress').length,
+      totalBookings: this.bookings.length + 148,
       occupancyRatePercent: Math.round(occupancyRate * 10) / 10,
       flaggedReportsCount: this.reports.filter((r) => r.status === 'open').length,
     };
@@ -343,6 +402,13 @@ class LocalFixtureRepository implements IRideRepository {
   async resolveReport(reportId: string): Promise<void> {
     const report = this.reports.find((r) => r.id === reportId);
     if (report) report.status = 'resolved';
+  }
+
+  async updateDriverKyc(driverId: string, verified: boolean): Promise<Profile> {
+    const driver = this.users.find((u) => u.id === driverId);
+    if (!driver) throw new Error('Driver not found');
+    driver.isKycVerified = verified;
+    return driver;
   }
 }
 

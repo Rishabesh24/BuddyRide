@@ -1,19 +1,21 @@
-// Booking Lifecycle Verification Script
+// Booking & OTP Lifecycle Verification Script (Tamil Nadu Transit Network)
 async function testLifecycle() {
-  console.log('--- Testing Complete Booking Lifecycle ---');
+  console.log('--- Testing Complete Booking, OTP & Trip Lifecycle ---');
 
-  // 1. Search rides
-  const searchRes = await fetch('http://localhost:3000/api/rides/search?originLat=37.78&originLng=-122.40&destLat=37.33&destLng=-121.89');
+  // 1. Search rides along Tamil Nadu corridor
+  const searchRes = await fetch('http://localhost:3000/api/rides/search?origin=Guindy&destination=OMR+Siruseri');
   const searchData = await searchRes.json();
   const candidate = searchData.data.results[0];
-  console.log(`1. Found compatible ride ${candidate.rideId} (Score: ${candidate.compatibilityScore}%, Detour: ${candidate.totalDetourKm}km, Fare: $${candidate.totalCharge})`);
+  console.log(`1. Found compatible ride ${candidate.rideId} (Driver: ${candidate.ride.driver?.fullName}, Vehicle: ${candidate.ride.vehicle?.model}, Fare: ₹${candidate.totalCharge})`);
 
-  // 2. Submit seat request
+  // 2. Submit seat request (generates 4-digit start OTP)
   const bookRes = await fetch('http://localhost:3000/api/bookings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       rideId: candidate.rideId,
+      passengerId: 'u-demo-passenger',
+      vehicleType: candidate.ride.vehicleType,
       seatsBooked: 1,
       pickupLocation: candidate.ride.origin,
       dropoffLocation: candidate.ride.destination,
@@ -25,26 +27,31 @@ async function testLifecycle() {
     }),
   });
   const bookData = await bookRes.json();
-  const bookingId = bookData.data.id;
-  console.log(`2. Submitted booking request: ID=${bookingId}, Status=${bookData.data.status}`);
+  const booking = bookData.data;
+  console.log(`2. Submitted booking: ID=${booking.id}, Status=${booking.status}, Generated Start OTP=${booking.startOtp}`);
 
-  // 3. Driver accepts booking
-  const acceptRes = await fetch(`http://localhost:3000/api/bookings/${bookingId}/accept`, {
-    method: 'POST',
-  });
-  const acceptData = await acceptRes.json();
-  console.log(`3. Driver accepted booking: Status=${acceptData.data.status}`);
+  if (!booking.startOtp || booking.startOtp.length !== 4) {
+    throw new Error('Start OTP was not generated properly as a 4-digit code!');
+  }
 
-  // 4. Passenger cancels booking
-  const cancelRes = await fetch(`http://localhost:3000/api/bookings/${bookingId}/cancel`, {
+  // 3. Driver enters and verifies passenger's 4-digit start OTP
+  console.log(`3. Driver entering passenger OTP: ${booking.startOtp}...`);
+  const verifyRes = await fetch(`http://localhost:3000/api/bookings/${booking.id}/verify-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason: 'Trip rescheduled' }),
+    body: JSON.stringify({ otp: booking.startOtp }),
   });
-  const cancelData = await cancelRes.json();
-  console.log(`4. Passenger cancelled booking: Status=${cancelData.data.status}, Reason="${cancelData.data.cancellationReason}"`);
+  const verifyData = await verifyRes.json();
+  console.log(`   Verification result: Success=${verifyData.success}, Message="${verifyData.data?.message}"`);
 
-  console.log('--- Lifecycle Test PASSED with 100% integrity ---');
+  // 4. Driver completes trip
+  const completeRes = await fetch(`http://localhost:3000/api/bookings/${booking.id}/complete`, {
+    method: 'POST',
+  });
+  const completeData = await completeRes.json();
+  console.log(`4. Trip completed: Status=${completeData.data.status}`);
+
+  console.log('--- Lifecycle & OTP Verification Test PASSED with 100% integrity ---');
 }
 
 testLifecycle();

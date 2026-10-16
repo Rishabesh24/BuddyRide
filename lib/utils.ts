@@ -9,14 +9,13 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Formats a currency amount in USD
+ * Formats a currency amount in Indian Rupees (INR / ₹)
  */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    currency: "INR",
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
   }).format(amount);
 }
 

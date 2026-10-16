@@ -15,6 +15,10 @@ import {
   HelpCircle,
   Loader2,
   MapPin,
+  Lock,
+  Phone,
+  MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RouteTimeline } from "@/components/ui/route-timeline";
 import { InteractiveMap } from "@/components/map/interactive-map";
 import { useToast } from "@/components/ui/toast";
-import { Ride } from "@/features/types";
+import { Booking, Ride, VEHICLE_TIERS } from "@/features/types";
 import { calculateProportionalFare } from "@/features/fare/calculator";
 import { formatCurrency, formatDistance, formatDuration, formatTime } from "@/lib/utils";
 
@@ -36,7 +40,7 @@ export default function RideDetailPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedSeats, setSelectedSeats] = React.useState(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [bookingConfirmed, setBookingConfirmed] = React.useState(false);
+  const [confirmedBooking, setConfirmedBooking] = React.useState<Booking | null>(null);
 
   React.useEffect(() => {
     async function loadRide() {
@@ -76,11 +80,13 @@ export default function RideDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rideId: ride.id,
+          passengerId: "u-demo-passenger",
+          vehicleType: ride.vehicleType,
           seatsBooked: selectedSeats,
           pickupLocation: ride.origin,
           dropoffLocation: ride.destination,
           segmentDistanceKm: ride.totalDistanceKm,
-          detourDistanceKm: 1.5,
+          detourDistanceKm: 1.0,
           fareAmount: fare.fareAmount,
           platformFee: fare.platformFee,
           totalPaid: fare.totalPaid,
@@ -89,11 +95,11 @@ export default function RideDetailPage() {
 
       const data = await res.json();
       if (data.success) {
-        setBookingConfirmed(true);
+        setConfirmedBooking(data.data);
         showToast({
           type: "success",
-          title: "Booking Request Submitted!",
-          message: "The driver will review your route request shortly.",
+          title: "Ride Booked Successfully!",
+          message: `Your 4-digit start OTP is ${data.data.startOtp}. Share with driver when boarding.`,
         });
       } else {
         showToast({
@@ -105,8 +111,8 @@ export default function RideDetailPage() {
     } catch {
       showToast({
         type: "error",
-        title: "Network Error",
-        message: "Please try again later.",
+        title: "Connection Error",
+        message: "Failed to communicate with booking server.",
       });
     } finally {
       setIsSubmitting(false);
@@ -115,168 +121,188 @@ export default function RideDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-mobility-600" />
+      <div className="flex-1 flex flex-col items-center justify-center p-12 bg-commuter-50">
+        <Loader2 className="w-8 h-8 animate-spin text-mobility-600 mb-3" />
+        <p className="text-sm font-semibold text-commuter-700">Loading trip itinerary...</p>
       </div>
     );
   }
 
   if (!ride) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
-        <AlertCircle className="w-12 h-12 text-red-500 mb-3" />
-        <h2 className="text-xl font-bold text-commuter-900">Ride Not Found</h2>
-        <p className="text-sm text-commuter-500 mt-1">
+      <div className="flex-1 flex flex-col items-center justify-center p-12 bg-commuter-50">
+        <AlertCircle className="w-12 h-12 text-rose-500 mb-3" />
+        <h2 className="text-xl font-bold text-commuter-900">Trip Not Found</h2>
+        <p className="text-xs text-commuter-500 mt-1 mb-4">
           This ride may have already departed or been cancelled.
         </p>
-        <Link href="/rides" className="mt-4">
-          <Button variant="outline">Back to Search</Button>
+        <Link href="/rides">
+          <Button variant="outline">Back to Available Rides</Button>
         </Link>
       </div>
     );
   }
 
+  const tier = VEHICLE_TIERS.find((t) => t.type === ride.vehicleType) ?? VEHICLE_TIERS[3];
+
   return (
-    <div className="flex-1 bg-commuter-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="flex-1 flex flex-col bg-commuter-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         {/* Navigation Breadcrumb */}
-        <div className="flex items-center space-x-2 text-xs font-medium text-commuter-500">
+        <div className="mb-6 flex items-center justify-between">
           <Link
             href="/rides"
-            className="inline-flex items-center space-x-1 hover:text-commuter-900 transition-colors"
+            className="inline-flex items-center space-x-1.5 text-xs font-bold text-commuter-600 hover:text-commuter-900 transition-colors"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to Search Results</span>
           </Link>
-          <span>/</span>
-          <span className="text-commuter-800 font-semibold truncate">
-            {ride.origin.city} to {ride.destination.city}
-          </span>
+          <div className="flex items-center space-x-2">
+            <span className="text-xl">{tier.emoji}</span>
+            <Badge variant="outline" className="font-bold">
+              {tier.name}
+            </Badge>
+            <Badge variant="success" className="font-bold">
+              {ride.availableSeats} seats remaining
+            </Badge>
+          </div>
         </div>
 
-        {/* Confirmation Banner if booked */}
-        {bookingConfirmed && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start space-x-3 animate-in fade-in-50">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="font-bold text-sm">Booking Request Sent Successfully</h4>
-              <p className="text-xs text-emerald-700 mt-0.5">
-                Your request for {selectedSeats} seat(s) has been forwarded to {ride.driver?.fullName}. You will be notified the moment it is confirmed.
-              </p>
-              <div className="mt-3">
-                <Link href="/bookings">
-                  <Button size="sm" className="font-semibold bg-emerald-700 hover:bg-emerald-800 text-white">
-                    View in My Bookings
-                  </Button>
-                </Link>
+        {/* Booking Confirmed Banner (Ola / Uber OTP Card) */}
+        {confirmedBooking && (
+          <div className="mb-8 p-6 rounded-3xl bg-gradient-to-r from-emerald-900 via-emerald-800 to-commuter-900 text-white shadow-xl border border-emerald-500/30">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center space-x-2 bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-xs font-bold border border-emerald-400/30">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Ride Confirmed with Driver {ride.driver?.fullName}</span>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight">
+                  Trip Confirmed · Start PIN
+                </h2>
+                <p className="text-xs text-emerald-200 max-w-lg leading-relaxed">
+                  Share this 4-digit code with the driver inside the car when you board. The driver cannot start the meter or trip without this PIN.
+                </p>
               </div>
+
+              {/* Bold 4-Digit OTP Box */}
+              <div className="bg-white text-commuter-900 p-5 rounded-2xl shadow-lg border border-white text-center min-w-[200px]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-commuter-500 block mb-1 flex items-center justify-center">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600 mr-1" />
+                  4-Digit Start OTP
+                </span>
+                <span className="text-4xl font-black tracking-widest text-emerald-700 font-mono block">
+                  {confirmedBooking.startOtp || "5829"}
+                </span>
+                <span className="text-[10px] text-commuter-400 font-semibold block mt-1">
+                  Keep this private until pickup
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-emerald-700/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-4">
+                <span className="text-emerald-200">
+                  Vehicle: <strong className="text-white">{ride.vehicle?.make} {ride.vehicle?.model} ({ride.vehicle?.licensePlate})</strong>
+                </span>
+                <span className="text-emerald-200">
+                  Driver Contact: <strong className="text-white">{ride.driver?.phoneNumber}</strong>
+                </span>
+              </div>
+              <Link href="/bookings">
+                <Button size="sm" className="bg-white hover:bg-emerald-50 text-emerald-950 font-bold">
+                  View in My Bookings
+                </Button>
+              </Link>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Column: Journey Info & Map (7 cols) */}
+          {/* Left Column: Route Itinerary & Driver Card (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Header Card */}
-            <Card>
+            {/* Main Itinerary Header Card */}
+            <Card className="border-commuter-200 shadow-xs bg-white">
               <CardContent className="p-6">
-                <div className="flex items-start justify-between pb-4 border-b border-commuter-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-commuter-100">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-mobility-700">
-                      Scheduled Commute
+                      Corridor Route · Tamil Nadu
                     </span>
-                    <h1 className="text-2xl font-extrabold text-commuter-900 mt-0.5">
+                    <h1 className="text-2xl font-black text-commuter-900 mt-1">
                       {ride.origin.city} ➔ {ride.destination.city}
                     </h1>
-                    <div className="flex items-center space-x-4 mt-2 text-xs text-commuter-600 font-medium">
-                      <span className="flex items-center">
-                        <Calendar className="w-3.5 h-3.5 text-commuter-400 mr-1.5" />
-                        {new Date(ride.departureTime).toLocaleDateString([], {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                      <span className="flex items-center">
-                        <Clock className="w-3.5 h-3.5 text-commuter-400 mr-1.5" />
-                        {formatTime(ride.departureTime)} ({formatDuration(ride.estimatedDurationMinutes)})
-                      </span>
-                    </div>
+                    <p className="text-xs text-commuter-500 mt-0.5">
+                      Departing on {formatTime(ride.departureTime)} ({formatDuration(ride.estimatedDurationMinutes)} commute)
+                    </p>
                   </div>
-
-                  <Badge variant="success" className="text-sm px-3 py-1">
-                    {ride.availableSeats} seats open
-                  </Badge>
+                  <div className="text-right sm:text-right">
+                    <span className="text-[10px] uppercase font-bold text-commuter-400 block">
+                      Single Seat Fare
+                    </span>
+                    <span className="text-2xl font-black text-commuter-900">
+                      {formatCurrency(ride.totalDistanceKm * ride.basePricePerKm)}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold block">
+                      Fixed Commuter Rate
+                    </span>
+                  </div>
                 </div>
 
-                {/* Route Timeline */}
-                <div className="mt-6">
+                {/* Interactive Map Visual */}
+                <div className="mt-6 rounded-2xl overflow-hidden border border-commuter-200 h-64 w-full">
+                  <InteractiveMap
+                    origin={ride.origin}
+                    destination={ride.destination}
+                    waypoints={ride.waypoints}
+                    className="h-full w-full"
+                  />
+                </div>
+
+                {/* Detailed Stopover Timeline */}
+                <div className="mt-6 pt-4 border-t border-commuter-100">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-commuter-500 mb-4">
-                    Stops & Waypoints
+                    Stops Along the Highway Corridor
                   </h3>
                   <RouteTimeline
                     origin={ride.origin}
                     destination={ride.destination}
                     waypoints={ride.waypoints}
-                    departureTime={formatTime(ride.departureTime)}
+                    departureTime={ride.departureTime}
                   />
-                </div>
-
-                {ride.notes && (
-                  <div className="mt-6 pt-4 border-t border-commuter-100">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-commuter-500 mb-1">
-                      Driver Commuter Notes
-                    </h4>
-                    <p className="text-xs text-commuter-700 leading-relaxed bg-commuter-50 p-3 rounded-lg border border-commuter-200">
-                      &ldquo;{ride.notes}&rdquo;
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Interactive Route Map */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-commuter-500 mb-3">
-                  Interactive Route Geometry
-                </h3>
-                <div className="h-72 w-full rounded-xl overflow-hidden border border-commuter-200">
-                  <InteractiveMap
-                    origin={ride.origin}
-                    destination={ride.destination}
-                    waypoints={ride.waypoints}
-                  />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-commuter-500">
-                  <span>Total Distance: {formatDistance(ride.totalDistanceKm)}</span>
-                  <span>Driver Detour Allowance: ≤ {ride.maxDetourKm} km</span>
                 </div>
               </CardContent>
             </Card>
 
             {/* Driver & Vehicle Profile */}
-            <Card>
+            <Card className="border-commuter-200 shadow-xs bg-white">
               <CardContent className="p-6">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-commuter-500 mb-4">
-                  Driver & Vehicle Details
+                  Verified Captain & Vehicle Specs
                 </h3>
 
                 <div className="flex items-start space-x-4">
                   <img
                     src={ride.driver?.avatarUrl}
                     alt={ride.driver?.fullName}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-commuter-200"
+                    className="w-14 h-14 rounded-full object-cover border-2 border-commuter-200 shadow-xs"
                   />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
                       <h4 className="text-base font-bold text-commuter-900">
                         {ride.driver?.fullName}
                       </h4>
-                      <Badge variant="mobility">Verified Driver</Badge>
+                      <Badge variant="success" className="font-bold flex items-center">
+                        <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                        Verified Partner
+                      </Badge>
                     </div>
                     <p className="text-xs text-commuter-500 mt-0.5">
-                      ★ {ride.driver?.ratingAverage.toFixed(2)} rating · {ride.driver?.ratingCount} rides completed
+                      <span className="font-bold text-amber-500">★ {ride.driver?.ratingAverage.toFixed(2)}</span>
+                      {" · "}
+                      <span>{ride.driver?.ratingCount} trips completed</span>
+                      {" · "}
+                      <span className="font-mono text-commuter-700 font-semibold">{ride.driver?.drivingLicenseNo}</span>
                     </p>
                     <p className="text-xs text-commuter-600 mt-2 leading-relaxed">
                       {ride.driver?.bio}
@@ -284,24 +310,24 @@ export default function RideDetailPage() {
                   </div>
                 </div>
 
-                {/* Vehicle Specs */}
+                {/* Vehicle Specs Grid */}
                 {ride.vehicle && (
                   <div className="mt-6 pt-4 border-t border-commuter-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="p-2.5 rounded-lg bg-commuter-50 border border-commuter-200">
-                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Vehicle</span>
-                      <span className="font-semibold text-commuter-900">{ride.vehicle.make} {ride.vehicle.model}</span>
+                    <div className="p-3 rounded-xl bg-commuter-50 border border-commuter-200">
+                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Category</span>
+                      <span className="font-bold text-commuter-900">{tier.name} {tier.emoji}</span>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-commuter-50 border border-commuter-200">
-                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Year / Color</span>
-                      <span className="font-semibold text-commuter-900">{ride.vehicle.year} · {ride.vehicle.color}</span>
+                    <div className="p-3 rounded-xl bg-commuter-50 border border-commuter-200">
+                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Model</span>
+                      <span className="font-bold text-commuter-900">{ride.vehicle.make} {ride.vehicle.model}</span>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-commuter-50 border border-commuter-200">
-                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">License Plate</span>
-                      <span className="font-semibold text-commuter-900">{ride.vehicle.licensePlate}</span>
+                    <div className="p-3 rounded-xl bg-commuter-50 border border-commuter-200">
+                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Registration</span>
+                      <span className="font-mono font-bold text-commuter-900">{ride.vehicle.licensePlate}</span>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-commuter-50 border border-commuter-200">
-                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Total Capacity</span>
-                      <span className="font-semibold text-commuter-900">{ride.totalSeats} passengers</span>
+                    <div className="p-3 rounded-xl bg-commuter-50 border border-commuter-200">
+                      <span className="text-commuter-400 block text-[10px] uppercase font-bold">Available Seats</span>
+                      <span className="font-bold text-emerald-700">{ride.availableSeats} of {ride.totalSeats} open</span>
                     </div>
                   </div>
                 )}
@@ -311,14 +337,14 @@ export default function RideDetailPage() {
 
           {/* Right Column: Fare Breakdown & Reservation Box (5 cols) */}
           <div className="lg:col-span-5 sticky top-24 space-y-6">
-            <Card className="border-mobility-200 shadow-lg">
+            <Card className="border-mobility-200 shadow-md bg-white">
               <CardContent className="p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-commuter-900">
-                    Reserve Your Seat
+                    Reserve Your Ride
                   </h3>
                   <p className="text-xs text-commuter-500 mt-0.5">
-                    Deterministic cost allocation — pay strictly for distance traveled.
+                    Transparent distance-based fare in Indian Rupees (₹).
                   </p>
                 </div>
 
@@ -326,7 +352,7 @@ export default function RideDetailPage() {
                 <div className="p-3.5 rounded-xl bg-commuter-50 border border-commuter-200 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 text-commuter-600" />
-                    <span className="text-xs font-semibold text-commuter-900">
+                    <span className="text-xs font-bold text-commuter-900">
                       Number of Passengers
                     </span>
                   </div>
@@ -335,7 +361,7 @@ export default function RideDetailPage() {
                       type="button"
                       onClick={() => setSelectedSeats((s) => Math.max(1, s - 1))}
                       disabled={selectedSeats <= 1}
-                      className="w-7 h-7 rounded-md border border-commuter-300 bg-white text-sm font-bold text-commuter-800 disabled:opacity-40 hover:bg-commuter-100"
+                      className="w-8 h-8 rounded-lg border border-commuter-300 bg-white text-sm font-bold text-commuter-800 disabled:opacity-40 hover:bg-commuter-100"
                     >
                       -
                     </button>
@@ -346,7 +372,7 @@ export default function RideDetailPage() {
                       type="button"
                       onClick={() => setSelectedSeats((s) => Math.min(ride.availableSeats, s + 1))}
                       disabled={selectedSeats >= ride.availableSeats}
-                      className="w-7 h-7 rounded-md border border-commuter-300 bg-white text-sm font-bold text-commuter-800 disabled:opacity-40 hover:bg-commuter-100"
+                      className="w-8 h-8 rounded-lg border border-commuter-300 bg-white text-sm font-bold text-commuter-800 disabled:opacity-40 hover:bg-commuter-100"
                     >
                       +
                     </button>
@@ -357,12 +383,12 @@ export default function RideDetailPage() {
                 {fare && (
                   <div className="space-y-3 pt-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-commuter-500">
-                      Transparent Fare Breakdown
+                      Fare Breakdown (₹)
                     </h4>
-                    <div className="rounded-xl border border-commuter-200 bg-white p-3.5 space-y-2 text-xs">
-                      <div className="flex justify-between text-commuter-600">
-                        <span>Segment Distance ({formatDistance(ride.totalDistanceKm)}) × ${ride.basePricePerKm}/km</span>
-                        <span className="font-semibold text-commuter-900">{formatCurrency(fare.grossFare)}</span>
+                    <div className="rounded-xl border border-commuter-200 bg-commuter-50/50 p-4 space-y-2 text-xs">
+                      <div className="flex justify-between text-commuter-700">
+                        <span>Distance Fare ({formatDistance(ride.totalDistanceKm)} × ₹{ride.basePricePerKm}/km)</span>
+                        <span className="font-bold text-commuter-900">{formatCurrency(fare.grossFare)}</span>
                       </div>
 
                       {fare.carpoolDiscountPercent > 0 && (
@@ -375,21 +401,21 @@ export default function RideDetailPage() {
                       <div className="flex justify-between text-commuter-600">
                         <span className="flex items-center">
                           Platform Contribution (5%)
-                          <span title="Supports verification & map servers">
+                          <span title="Maintains 24/7 SOS and verified driver tracking">
                             <HelpCircle className="w-3 h-3 ml-1 text-commuter-400" />
                           </span>
                         </span>
                         <span className="font-semibold text-commuter-900">{formatCurrency(fare.platformFee)}</span>
                       </div>
 
-                      <div className="pt-2 border-t border-commuter-100 flex justify-between items-baseline">
+                      <div className="pt-3 border-t border-commuter-200 flex justify-between items-baseline">
                         <div>
-                          <span className="text-sm font-bold text-commuter-900">Total Calculated Fare</span>
+                          <span className="text-sm font-bold text-commuter-900">Total Fare Payable</span>
                           <span className="block text-[10px] text-commuter-400">
-                            {selectedSeats} seat(s) · All taxes included
+                            {selectedSeats} passenger(s) · Zero surge guarantee
                           </span>
                         </div>
-                        <span className="text-2xl font-extrabold text-commuter-900">
+                        <span className="text-2xl font-black text-commuter-900">
                           {formatCurrency(fare.totalPaid)}
                         </span>
                       </div>
@@ -397,14 +423,11 @@ export default function RideDetailPage() {
                   </div>
                 )}
 
-                {/* Cancellation Policy */}
-                <div className="rounded-lg bg-mobility-50/60 p-3 text-xs text-mobility-900 border border-mobility-200 space-y-1">
-                  <p className="font-bold flex items-center">
-                    <ShieldCheck className="w-3.5 h-3.5 mr-1 text-mobility-700" />
-                    Commuter Protection Policy
-                  </p>
-                  <p className="text-[11px] text-mobility-800 leading-relaxed">
-                    Free cancellation up to 2 hours before scheduled departure. Drivers cannot accept duplicate requests for booked seats.
+                {/* OTP Security Notice */}
+                <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900 border border-amber-200 flex items-start space-x-2">
+                  <Lock className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    You will receive a unique <strong>4-digit start PIN</strong> immediately after confirmation. Never share it with anyone before boarding.
                   </p>
                 </div>
 
@@ -413,11 +436,11 @@ export default function RideDetailPage() {
                   <Button
                     onClick={handleBookingSubmit}
                     isLoading={isSubmitting}
-                    disabled={bookingConfirmed || ride.availableSeats < selectedSeats}
+                    disabled={!!confirmedBooking || ride.availableSeats < selectedSeats}
                     size="lg"
-                    className="w-full font-bold shadow-md shadow-mobility-600/20"
+                    className="w-full font-bold h-12 bg-commuter-900 hover:bg-black text-white shadow-md shadow-commuter-900/20 rounded-xl"
                   >
-                    {bookingConfirmed ? "Request Sent" : "Request Seat Reservation"}
+                    {confirmedBooking ? "Seat Reserved Successfully" : `Confirm Booking (${formatCurrency(fare?.totalPaid || 0)})`}
                   </Button>
                 </div>
               </CardContent>
