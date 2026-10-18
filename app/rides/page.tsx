@@ -52,7 +52,7 @@ function SearchResultsContent() {
   const [selectedRideId, setSelectedRideId] = React.useState<string | null>(null);
 
   // Filters State
-  const [maxPrice, setMaxPrice] = React.useState<number>(1000);
+  const [maxPrice, setMaxPrice] = React.useState<number>(3500);
   const [timeOfDay, setTimeOfDay] = React.useState<"all" | "morning" | "afternoon" | "evening">("all");
   const [sortBy, setSortBy] = React.useState<"compatibility" | "price_asc" | "departure_time" | "detour_asc">("compatibility");
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
@@ -256,7 +256,7 @@ function SearchResultsContent() {
               <input
                 type="range"
                 min="50"
-                max="1000"
+                max="3500"
                 step="50"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(Number(e.target.value))}

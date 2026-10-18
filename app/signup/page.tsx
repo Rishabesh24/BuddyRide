@@ -19,7 +19,7 @@ import { useToast } from "@/components/ui/toast";
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { switchRole } = useAuth();
+  const { signup } = useAuth();
   const { showToast } = useToast();
 
   const initialRole = (searchParams.get("role") as UserRole) || "passenger";
@@ -28,19 +28,29 @@ function SignupForm() {
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [errorMsg, setErrorMsg] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      switchRole(selectedRole);
+    const res = await signup({
+      fullName,
+      email,
+      phone,
+      password,
+      role: selectedRole,
+    });
+
+    setIsLoading(false);
+
+    if (res.success) {
       showToast({
         type: "success",
-        title: "Account Registered!",
-        message: `Welcome to RouteShare Tamil Nadu as a verified ${selectedRole}.`,
+        title: "Account Created!",
+        message: `Welcome, ${fullName}! Your account has been registered as a verified ${selectedRole}.`,
       });
 
       if (selectedRole === "admin") {
@@ -50,7 +60,9 @@ function SignupForm() {
       } else {
         router.push("/rides");
       }
-    }, 400);
+    } else {
+      setErrorMsg(res.message || "Failed to register account. Please check your details and try again.");
+    }
   };
 
   return (
@@ -106,6 +118,13 @@ function SignupForm() {
 
         {/* Signup Form */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-commuter-200 shadow-md space-y-4">
+          {errorMsg && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-700 flex items-center space-x-2 animate-in fade-in-50">
+              <span className="text-sm">⚠️</span>
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-commuter-700 mb-1.5 flex items-center">

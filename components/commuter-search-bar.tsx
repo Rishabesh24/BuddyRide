@@ -79,7 +79,7 @@ export function CommuterSearchBar() {
             list="origin-hubs"
             value={origin}
             onChange={(e) => setOrigin(e.target.value)}
-            placeholder="e.g. Chennai Airport, Central, T. Nagar"
+            placeholder="e.g. Coimbatore, Madurai, Salem, Chennai Airport"
             className="w-full h-12 px-3.5 rounded-xl border border-commuter-200 text-sm font-semibold text-commuter-900 placeholder:text-commuter-400 focus:outline-none focus:border-mobility-600 focus:ring-2 focus:ring-mobility-100"
             required
           />
@@ -103,7 +103,7 @@ export function CommuterSearchBar() {
             list="dest-hubs"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            placeholder="e.g. OMR Siruseri IT Park, Pondicherry"
+            placeholder="e.g. Ooty, Kanyakumari, Trichy, OMR IT Park"
             className="w-full h-12 px-3.5 rounded-xl border border-commuter-200 text-sm font-semibold text-commuter-900 placeholder:text-commuter-400 focus:outline-none focus:border-mobility-600 focus:ring-2 focus:ring-mobility-100"
             required
           />
@@ -154,7 +154,7 @@ export function CommuterSearchBar() {
             className="w-full font-bold h-12 space-x-2 text-white bg-gradient-to-r from-commuter-900 via-mobility-700 to-mobility-800 hover:from-black hover:to-mobility-900 shadow-md shadow-mobility-700/20 rounded-xl"
           >
             <Compass className="w-4 h-4" />
-            <span>Find Cabs & Auto</span>
+            <span>Find Rides in TN</span>
           </Button>
         </div>
       </form>
@@ -169,6 +169,76 @@ export function CommuterSearchBar() {
           type="button"
           onClick={() =>
             setCorridor(
+              "Salem New Bus Stand (Central Terminus)",
+              "Coimbatore Gandhipuram Central Bus Stand",
+              "suv"
+            )
+          }
+          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
+        >
+          <span>Salem ➔ Coimbatore (NH 544)</span>
+          <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded">₹380</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCorridor(
+              "Coimbatore Gandhipuram Central Bus Stand",
+              "Udhagamandalam (Ooty) Central Bus Stand",
+              "suv"
+            )
+          }
+          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
+        >
+          <span>Coimbatore ➔ Ooty (Nilgiris)</span>
+          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">🏔️ ₹410</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCorridor(
+              "Madurai Mattuthavani MGR Integrated Bus Terminus",
+              "Kanyakumari Cape Comorin Beach & Memorial",
+              "sedan"
+            )
+          }
+          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
+        >
+          <span>Madurai ➔ Kanyakumari</span>
+          <span className="text-[10px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded">₹490</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCorridor(
+              "Kalaignar Centenary Bus Terminus (KCBT Kilambakkam)",
+              "Madurai Mattuthavani MGR Integrated Bus Terminus",
+              "suv"
+            )
+          }
+          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
+        >
+          <span>Chennai ➔ Madurai (GST Road)</span>
+          <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">Express</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCorridor(
+              "Tiruchirappalli (Trichy) Central Bus Stand",
+              "Mayiladuthurai Central Bus Stand",
+              "suv"
+            )
+          }
+          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
+        >
+          <span>Trichy ➔ Thanjavur / Delta</span>
+          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">₹260</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setCorridor(
               "Chennai International Airport (MAA)",
               "OMR Siruseri SIPCOT IT Park (Navalur)",
               "sedan"
@@ -178,48 +248,6 @@ export function CommuterSearchBar() {
         >
           <span>Airport ➔ OMR IT Park</span>
           <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">₹370</span>
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setCorridor(
-              "Chennai Central Railway Station (MAS)",
-              "T. Nagar (Pondy Bazaar / Panagal Park)",
-              "auto"
-            )
-          }
-          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
-        >
-          <span>Central ➔ T. Nagar</span>
-          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">🛺 Auto ₹140</span>
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setCorridor(
-              "Velachery MRTS & Phoenix Marketcity",
-              "Porur DLF Cybercity & IT Park",
-              "bike"
-            )
-          }
-          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
-        >
-          <span>Velachery ➔ Porur DLF</span>
-          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">🛵 Bike ₹95</span>
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setCorridor(
-              "OMR Sholinganallur ELCOT Junction",
-              "Pondicherry White Town / Promenade Beach",
-              "mini"
-            )
-          }
-          className="px-3 py-1.5 rounded-full bg-white border border-commuter-200 hover:border-mobility-500 hover:text-mobility-800 font-semibold shadow-xs transition-colors flex items-center space-x-1"
-        >
-          <span>Chennai ➔ Pondicherry (ECR)</span>
-          <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded">Outstation ₹450</span>
         </button>
       </div>
     </div>

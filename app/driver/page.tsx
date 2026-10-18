@@ -21,12 +21,13 @@ import {
   Power,
   DollarSign,
   Wallet,
+  Navigation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { Booking, Ride, VEHICLE_TIERS } from "@/features/types";
+import { Booking, Ride, Vehicle, VEHICLE_TIERS } from "@/features/types";
 import { useRole } from "@/context/role-context";
 import { RoleGuard } from "@/components/auth/role-guard";
 import { formatCurrency, formatDistance } from "@/lib/utils";
@@ -37,6 +38,7 @@ export default function DriverDashboardPage() {
 
   const [driverRides, setDriverRides] = React.useState<Ride[]>([]);
   const [driverBookings, setDriverBookings] = React.useState<Booking[]>([]);
+  const [driverVehicle, setDriverVehicle] = React.useState<Vehicle | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
@@ -44,23 +46,31 @@ export default function DriverDashboardPage() {
   const [otpInputs, setOtpInputs] = React.useState<{ [bookingId: string]: string }>({});
   const [verifyingOtpId, setVerifyingOtpId] = React.useState<string | null>(null);
 
-  const driverId = "u-karthik-sedan";
+  // Dynamic driver ID linked to current authenticated account
+  const driverId = currentUser?.id || "u-karthik-sedan";
 
   const fetchDashboardData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch rides
-      const ridesRes = await fetch("/api/rides");
+      // 1. Fetch rides for this driver
+      const ridesRes = await fetch(`/api/rides?driverId=${encodeURIComponent(driverId)}`);
       const ridesData = await ridesRes.json();
-      if (ridesData.success) {
-        setDriverRides(ridesData.data.filter((r: Ride) => r.driverId === driverId));
+      if (ridesData.success && Array.isArray(ridesData.data)) {
+        setDriverRides(ridesData.data);
       }
 
       // 2. Fetch driver incoming bookings
-      const bookingsRes = await fetch(`/api/bookings?role=driver&userId=${driverId}`);
+      const bookingsRes = await fetch(`/api/bookings?role=driver&userId=${encodeURIComponent(driverId)}`);
       const bookingsData = await bookingsRes.json();
-      if (bookingsData.success) {
+      if (bookingsData.success && Array.isArray(bookingsData.data)) {
         setDriverBookings(bookingsData.data);
+      }
+
+      // 3. Fetch driver vehicle
+      const vehicleRes = await fetch(`/api/vehicles?driverId=${encodeURIComponent(driverId)}`);
+      const vehicleData = await vehicleRes.json();
+      if (vehicleData.success && Array.isArray(vehicleData.data) && vehicleData.data.length > 0) {
+        setDriverVehicle(vehicleData.data[0]);
       }
     } catch {
       // error
@@ -211,6 +221,15 @@ export default function DriverDashboardPage() {
   const activeBookings = driverBookings.filter(
     (b) => b.status === "confirmed" || b.status === "in_progress"
   );
+  const completedBookings = driverBookings.filter((b) => b.status === "completed");
+
+  const completedFares = completedBookings.reduce((sum, b) => sum + (b.fareAmount || 0), 0);
+  const isDemoAccount = driverId === "u-karthik-sedan";
+  const grossEarnings = isDemoAccount
+    ? (completedFares > 0 ? 2450 + completedFares : 2450)
+    : (completedFares + (currentUser?.todayEarnings || 0));
+  const platformCut = Math.round(grossEarnings * 0.05 * 100) / 100;
+  const netPayout = Math.round((grossEarnings - platformCut) * 100) / 100;
 
   return (
     <RoleGuard requiredRole="driver" portalName="Driver Partner Console">
@@ -220,27 +239,47 @@ export default function DriverDashboardPage() {
         {/* Driver Header & Online Toggle */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-commuter-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start space-x-4">
-            <img
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-              alt="Karthik Raja"
-              className="w-16 h-16 rounded-2xl object-cover border-2 border-commuter-200 shadow-xs"
-            />
+            {currentUser?.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt={currentUser?.fullName || "Driver Captain"}
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-commuter-200 shadow-xs bg-commuter-100"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-mobility-100 text-mobility-800 font-black text-xl flex items-center justify-center border-2 border-commuter-200 shadow-xs">
+                {currentUser?.fullName?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "DR"}
+              </div>
+            )}
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-2xl font-black text-commuter-900">
-                  Karthik Raja
+                  {currentUser?.fullName || "Driver Captain"}
                 </h1>
                 <Badge variant="success" className="font-bold">
-                  Verified Captain
+                  {currentUser?.isKycVerified ? "Verified Captain" : "Registered Captain"}
                 </Badge>
               </div>
               <p className="text-xs text-commuter-500 mt-1">
-                Prime Sedan Captain · Maruti Suzuki Dzire Tour (<strong className="text-commuter-900 font-mono">TN 10 BX 9014</strong>)
+                {driverVehicle ? (
+                  <>
+                    {driverVehicle.type ? `${driverVehicle.type.toUpperCase()} Captain` : "Prime Captain"} · {driverVehicle.make} {driverVehicle.model} (<strong className="text-commuter-900 font-mono">{driverVehicle.licensePlate}</strong>)
+                  </>
+                ) : driverRides.length > 0 && driverRides[0].vehicle ? (
+                  <>
+                    Prime Captain · {driverRides[0].vehicle.make} {driverRides[0].vehicle.model} (<strong className="text-commuter-900 font-mono">{driverRides[0].vehicle.licensePlate}</strong>)
+                  </>
+                ) : (
+                  <>Fleet Partner · All-Tamil Nadu Transit Certified</>
+                )}
               </p>
               <div className="flex items-center space-x-3 text-xs text-commuter-600 mt-2">
-                <span className="font-bold text-amber-500">★ 4.96 (2,150 rides)</span>
+                <span className="font-bold text-amber-500">
+                  ★ {(currentUser?.ratingAverage ?? 5.0).toFixed(2)} ({currentUser?.ratingCount ?? 0} rides)
+                </span>
                 <span>·</span>
-                <span className="font-mono text-commuter-500">Lic: TN-07-2018-0049102</span>
+                <span className="font-mono text-commuter-500">
+                  Lic: {currentUser?.drivingLicenseNo || "TN-07-2024-0049102"}
+                </span>
               </div>
             </div>
           </div>
@@ -281,10 +320,10 @@ export default function DriverDashboardPage() {
               Today&apos;s Gross Fares
             </span>
             <span className="text-2xl font-black text-commuter-900">
-              ₹2,450
+              {formatCurrency(grossEarnings)}
             </span>
             <span className="text-[11px] text-emerald-600 font-semibold block mt-1">
-              +₹620 vs yesterday
+              {completedBookings.length > 0 ? `${completedBookings.length} completed trip(s)` : isDemoAccount ? "+₹620 vs yesterday" : "Live earnings ledger"}
             </span>
           </div>
 
@@ -293,7 +332,7 @@ export default function DriverDashboardPage() {
               Platform Cut (5%)
             </span>
             <span className="text-2xl font-black text-commuter-600">
-              ₹122.50
+              {formatCurrency(platformCut)}
             </span>
             <span className="text-[11px] text-commuter-400 font-medium block mt-1">
               Maintains 24/7 safety & maps
@@ -305,7 +344,7 @@ export default function DriverDashboardPage() {
               Net Take-Home Payout
             </span>
             <span className="text-2xl font-black text-emerald-700">
-              ₹2,327.50
+              {formatCurrency(netPayout)}
             </span>
             <span className="text-[11px] text-emerald-700 font-bold block mt-1">
               Auto-settled to UPI daily
@@ -328,6 +367,91 @@ export default function DriverDashboardPage() {
               </Button>
             </Link>
           </div>
+        </div>
+
+        {/* Driver Published Corridors & Schedules */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-commuter-900 flex items-center space-x-2">
+              <Navigation className="w-5 h-5 text-mobility-600" />
+              <span>My Published Corridors ({driverRides.length})</span>
+            </h2>
+            <Link href="/driver/publish">
+              <Button size="sm" className="font-bold bg-commuter-900 hover:bg-black text-white text-xs">
+                <PlusCircle className="w-3.5 h-3.5 mr-1" />
+                Publish New Corridor
+              </Button>
+            </Link>
+          </div>
+
+          {driverRides.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-3xl border border-commuter-200">
+              <div className="w-12 h-12 rounded-2xl bg-mobility-50 text-mobility-600 flex items-center justify-center mx-auto mb-3">
+                <Car className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-commuter-900">
+                Welcome to your Captain Console, {currentUser?.fullName}!
+              </h3>
+              <p className="text-xs text-commuter-500 mt-1 max-w-md mx-auto">
+                You haven&apos;t scheduled any transit corridors yet. Set up your first commute along Tamil Nadu highways to start receiving passenger bookings.
+              </p>
+              <div className="mt-4">
+                <Link href="/driver/publish">
+                  <Button className="font-bold bg-mobility-600 hover:bg-mobility-700 text-white text-xs px-5">
+                    <PlusCircle className="w-4 h-4 mr-1.5" />
+                    Publish Your First Corridor
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {driverRides.map((ride) => (
+                <div
+                  key={ride.id}
+                  className="p-5 rounded-2xl bg-white border border-commuter-200 shadow-xs hover:border-mobility-400 transition-all space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-commuter-400 block">
+                        Corridor Route
+                      </span>
+                      <h4 className="font-bold text-sm text-commuter-900">
+                        {ride.origin.city} ➔ {ride.destination.city}
+                      </h4>
+                    </div>
+                    <Badge variant={ride.status === "scheduled" ? "success" : "secondary"}>
+                      {ride.status.toUpperCase()}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs text-commuter-600 pt-2 border-t border-commuter-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-commuter-400 block">DEPARTURE</span>
+                      <span className="font-semibold text-commuter-900">
+                        {new Date(ride.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {new Date(ride.departureTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-commuter-400 block">SEATS & FARE</span>
+                      <span className="font-semibold text-commuter-900">
+                        {ride.availableSeats}/{ride.totalSeats} Available · ₹{ride.basePricePerKm}/km
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-commuter-500 pt-1 flex items-center justify-between">
+                    <span className="truncate max-w-[200px]">
+                      📍 {ride.origin.address.split(",")[0]}
+                    </span>
+                    <span className="font-medium text-mobility-700">
+                      {ride.waypoints && ride.waypoints.length > 0 ? `+${ride.waypoints.length} stops` : 'Direct Corridor'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Active Trips Requiring Passenger OTP Verification */}

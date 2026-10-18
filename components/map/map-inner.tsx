@@ -72,8 +72,8 @@ export default function MapInner({
   dropoffLocation,
   routePolyline,
   className,
-  center = [13.0827, 80.2707], // Chennai, Tamil Nadu
-  zoom = 11,
+  center = [11.1271, 78.6569], // Central Tamil Nadu (Trichy/Karur state centroid)
+  zoom = 7,
 }: InteractiveMapProps) {
   // Compute polyline coordinates from points if not explicitly provided
   const polylineCoords: [number, number][] = routePolyline ?? (

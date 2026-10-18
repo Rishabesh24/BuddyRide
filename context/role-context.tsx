@@ -11,6 +11,13 @@ interface AuthContextType {
   role: UserRole | null;
   isAuthenticated: boolean;
   login: (identifier: string, secret: string, expectedRole?: UserRole) => Promise<{ success: boolean; message?: string }>;
+  signup: (data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+    role: UserRole;
+  }) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   // For backwards compatibility and convenience
   currentUser: Profile;
@@ -41,6 +48,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signup = async (data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+    role: UserRole;
+  }) => {
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const resData = await res.json();
+
+      if (!resData.success) {
+        return { success: false, message: resData.error?.message || 'Registration failed' };
+      }
+
+      const sessionUser = resData.data.user as Profile;
+      const userRole = (sessionUser.role === 'admin' ? 'admin' : sessionUser.role === 'driver' ? 'driver' : 'passenger') as UserRole;
+
+      setUser(sessionUser);
+      setRole(userRole);
+
+      localStorage.setItem('routeshare_auth_user', JSON.stringify(sessionUser));
+      localStorage.setItem('routeshare_auth_role', userRole);
+
+      // Cache credentials locally for persistent cross-restart authentication
+      try {
+        const saved = JSON.parse(localStorage.getItem('routeshare_saved_accounts') || '[]');
+        saved.unshift({
+          email: data.email.trim().toLowerCase(),
+          phone: data.phone.trim().replace(/\s+/g, ''),
+          password: data.password.trim(),
+          role: userRole,
+          profile: sessionUser,
+        });
+        localStorage.setItem('routeshare_saved_accounts', JSON.stringify(saved));
+      } catch {
+        // Storage unavailable
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Network error during signup' };
+    }
+  };
+
   const login = async (identifier: string, secret: string, expectedRole?: UserRole) => {
     try {
       const res = await fetch('/api/auth/login', {
@@ -52,6 +109,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
 
       if (!data.success) {
+        // Check locally saved user credentials as offline fallback
+        try {
+          const saved = JSON.parse(localStorage.getItem('routeshare_saved_accounts') || '[]');
+          const cleanId = identifier.trim().toLowerCase();
+          const cleanPass = secret.trim();
+          const matched = saved.find(
+            (acc: any) =>
+              (acc.email === cleanId || acc.phone === cleanId.replace(/\s+/g, '')) &&
+              acc.password === cleanPass
+          );
+          if (matched) {
+            setUser(matched.profile);
+            setRole(matched.role);
+            localStorage.setItem('routeshare_auth_user', JSON.stringify(matched.profile));
+            localStorage.setItem('routeshare_auth_role', matched.role);
+            return { success: true };
+          }
+        } catch {
+          // Storage unavailable
+        }
+
         return { success: false, message: data.error?.message || 'Login failed' };
       }
 
@@ -108,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         isAuthenticated: !!user,
         login,
+        signup,
         logout,
         currentUser,
         switchRole,

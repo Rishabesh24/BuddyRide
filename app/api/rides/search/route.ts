@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rideRepository } from '@/lib/db/repository';
-import { SearchQuery, TAMIL_NADU_HUBS } from '@/features/types';
+import { SearchQuery } from '@/features/types';
+import { resolveTamilNaduCoordinates } from '@/features/locations/geocoder';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,40 +10,34 @@ export async function GET(request: NextRequest) {
     const originText = searchParams.get('origin') || '';
     const destText = searchParams.get('destination') || '';
 
-    // Smart coordinate resolution from Tamil Nadu Hubs
-    let resolvedOriginLat = 13.0827; // Chennai Central
-    let resolvedOriginLng = 80.2754;
-    let resolvedDestLat = 12.8465; // OMR Siruseri
-    let resolvedDestLng = 80.2263;
+    let originLat = searchParams.get('originLat') ? parseFloat(searchParams.get('originLat')!) : NaN;
+    let originLng = searchParams.get('originLng') ? parseFloat(searchParams.get('originLng')!) : NaN;
+    let destLat = searchParams.get('destLat') ? parseFloat(searchParams.get('destLat')!) : NaN;
+    let destLng = searchParams.get('destLng') ? parseFloat(searchParams.get('destLng')!) : NaN;
 
-    if (originText) {
-      const match = TAMIL_NADU_HUBS.find((h) =>
-        originText.toLowerCase().includes(h.city.toLowerCase()) ||
-        h.name.toLowerCase().includes(originText.toLowerCase()) ||
-        originText.toLowerCase().includes(h.name.toLowerCase().split(' ')[0])
-      );
-      if (match) {
-        resolvedOriginLat = match.latitude;
-        resolvedOriginLng = match.longitude;
+    // Intelligent geocoding across all 38 districts of Tamil Nadu
+    if (isNaN(originLat) || isNaN(originLng)) {
+      if (originText) {
+        const resolved = await resolveTamilNaduCoordinates(originText);
+        originLat = resolved.latitude;
+        originLng = resolved.longitude;
+      } else {
+        originLat = 13.0827; // Default Chennai Central
+        originLng = 80.2754;
       }
     }
 
-    if (destText) {
-      const match = TAMIL_NADU_HUBS.find((h) =>
-        destText.toLowerCase().includes(h.city.toLowerCase()) ||
-        h.name.toLowerCase().includes(destText.toLowerCase()) ||
-        destText.toLowerCase().includes(h.name.toLowerCase().split(' ')[0])
-      );
-      if (match) {
-        resolvedDestLat = match.latitude;
-        resolvedDestLng = match.longitude;
+    if (isNaN(destLat) || isNaN(destLng)) {
+      if (destText) {
+        const resolved = await resolveTamilNaduCoordinates(destText);
+        destLat = resolved.latitude;
+        destLng = resolved.longitude;
+      } else {
+        destLat = 12.8465; // Default OMR Siruseri
+        destLng = 80.2263;
       }
     }
 
-    const originLat = parseFloat(searchParams.get('originLat') || resolvedOriginLat.toString());
-    const originLng = parseFloat(searchParams.get('originLng') || resolvedOriginLng.toString());
-    const destLat = parseFloat(searchParams.get('destLat') || resolvedDestLat.toString());
-    const destLng = parseFloat(searchParams.get('destLng') || resolvedDestLng.toString());
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
     const seats = parseInt(searchParams.get('seats') || '1', 10);
     const maxDetourKm = searchParams.get('maxDetourKm')

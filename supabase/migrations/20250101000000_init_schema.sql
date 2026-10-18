@@ -13,10 +13,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     phone_number TEXT,
     avatar_url TEXT,
     bio TEXT,
-    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    role TEXT NOT NULL DEFAULT 'passenger' CHECK (role IN ('passenger', 'driver', 'admin')),
     rating_avg NUMERIC(3, 2) NOT NULL DEFAULT 5.00,
     rating_count INT NOT NULL DEFAULT 0,
     is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
+    driving_license_no TEXT,
+    is_kyc_verified BOOLEAN NOT NULL DEFAULT TRUE,
+    today_earnings NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -27,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.vehicles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     driver_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'sedan' CHECK (type IN ('bike', 'auto', 'mini', 'sedan', 'suv', 'shuttle')),
     make TEXT NOT NULL,
     model TEXT NOT NULL,
     year INT NOT NULL,
@@ -59,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.rides (
     total_distance_km NUMERIC(8, 2) NOT NULL,
     estimated_duration_min INT NOT NULL,
     max_detour_km NUMERIC(5, 2) NOT NULL DEFAULT 15.0,
-    status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled')),
+    status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'active', 'in_progress', 'completed', 'cancelled')),
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -98,7 +102,8 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     fare_amount NUMERIC(8, 2) NOT NULL,
     platform_fee NUMERIC(8, 2) NOT NULL,
     total_paid NUMERIC(8, 2) NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected', 'cancelled', 'completed')),
+    start_otp VARCHAR(4),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'in_progress', 'rejected', 'cancelled', 'completed')),
     cancellation_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -240,3 +245,48 @@ BEGIN
     RETURN json_build_object('success', true);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 9. AUTH TRIGGER TO AUTO-CREATE USER PROFILE
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_role TEXT;
+    v_name TEXT;
+BEGIN
+    v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'passenger');
+    v_name := COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1));
+
+    INSERT INTO public.profiles (
+        id,
+        email,
+        full_name,
+        phone_number,
+        avatar_url,
+        role,
+        driving_license_no,
+        is_kyc_verified,
+        today_earnings
+    )
+    VALUES (
+        NEW.id,
+        NEW.email,
+        v_name,
+        NEW.raw_user_meta_data->>'phone_number',
+        'https://api.dicebear.com/7.x/initials/svg?seed=' || v_name,
+        v_role,
+        CASE WHEN v_role = 'driver' THEN 'TN-' || LPAD((FLOOR(RANDOM() * 88) + 10)::text, 2, '0') || '-2026-' || LPAD((FLOOR(RANDOM() * 900000) + 100000)::text, 6, '0') ELSE NULL END,
+        TRUE,
+        0.00
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
