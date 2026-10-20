@@ -17,8 +17,17 @@ export interface RegisteredAccount {
   profile: Profile;
 }
 
-// In-memory store for newly created accounts (persists during runtime)
-export const REGISTERED_ACCOUNTS: RegisteredAccount[] = [];
+// In-memory store for newly created accounts (persists across Next.js route chunks)
+const globalForAuth = globalThis as unknown as {
+  routeshare_registered_accounts?: RegisteredAccount[];
+};
+
+export const REGISTERED_ACCOUNTS: RegisteredAccount[] =
+  globalForAuth.routeshare_registered_accounts ?? [];
+
+if (!globalForAuth.routeshare_registered_accounts) {
+  globalForAuth.routeshare_registered_accounts = REGISTERED_ACCOUNTS;
+}
 
 // Authorized demo accounts with verified credentials
 export const DEMO_CREDENTIALS = [
@@ -72,6 +81,11 @@ export function registerAccount(data: {
 
   if (!cleanEmail || !cleanPass || !cleanName) {
     return { success: false, message: 'Name, email, and password are required.' };
+  }
+
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return { success: false, message: 'A valid email address is required.' };
   }
 
   if (!data.phone || cleanPhone.length !== 10 || !/^\d{10}$/.test(cleanPhone)) {
@@ -153,15 +167,31 @@ export function verifyCredentials(
 ): { success: boolean; session?: AuthSession; message?: string } {
   const cleanId = identifier.trim().toLowerCase();
   const cleanPass = secret.trim();
+  const digitsOnly = cleanId.replace(/\D/g, '');
+
+  const matchesPhone = (accountPhone?: string) => {
+    if (!accountPhone || !digitsOnly) return false;
+    const accDigits = accountPhone.replace(/\D/g, '');
+    return accDigits === digitsOnly || (accDigits.length === 12 && accDigits.endsWith(digitsOnly)) || (digitsOnly.length === 12 && digitsOnly.endsWith(accDigits));
+  };
 
   // 1. Check newly registered accounts first
   const regAccount = REGISTERED_ACCOUNTS.find(
     (acc) =>
-      (acc.email.toLowerCase() === cleanId || (acc.phone && acc.phone.replace(/\s+/g, '') === cleanId.replace(/\s+/g, ''))) &&
+      (acc.email.toLowerCase() === cleanId || matchesPhone(acc.phone)) &&
       acc.password === cleanPass
   );
 
+  const suspendedIds: Set<string> = (globalThis as any).__routeshare_suspended_user_ids || new Set();
+
   if (regAccount) {
+    if (regAccount.profile.isSuspended || suspendedIds.has(regAccount.id)) {
+      return {
+        success: false,
+        message: 'Account is suspended. Please contact safety support.',
+      };
+    }
+
     if (expectedRole && regAccount.role !== expectedRole) {
       return {
         success: false,
@@ -182,11 +212,18 @@ export function verifyCredentials(
   // 2. Check demo evaluation credentials
   const demoAccount = DEMO_CREDENTIALS.find(
     (acc) =>
-      (acc.email.toLowerCase() === cleanId || acc.phone.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) &&
+      (acc.email.toLowerCase() === cleanId || matchesPhone(acc.phone)) &&
       acc.password === cleanPass
   );
 
   if (demoAccount) {
+    if (demoAccount.profile.isSuspended || suspendedIds.has(demoAccount.profile.id)) {
+      return {
+        success: false,
+        message: 'Account is suspended. Please contact safety support.',
+      };
+    }
+
     if (expectedRole && demoAccount.role !== expectedRole) {
       return {
         success: false,

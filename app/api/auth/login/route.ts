@@ -30,6 +30,21 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (profileData) {
+            const suspendedIds: Set<string> = (globalThis as any).__routeshare_suspended_user_ids || new Set();
+            if (
+              profileData.is_suspended ||
+              (suspendedIds.has && (
+                suspendedIds.has(profileData.id) ||
+                suspendedIds.has(profileData.email?.toLowerCase()) ||
+                suspendedIds.has(identifier.trim().toLowerCase())
+              ))
+            ) {
+              return NextResponse.json(
+                { success: false, error: { message: 'Account is suspended. Please contact safety support.' } },
+                { status: 401 }
+              );
+            }
+
             const session = {
               user: {
                 id: profileData.id,

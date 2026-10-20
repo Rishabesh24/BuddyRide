@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      return NextResponse.json(
+        { success: false, error: { message: 'A valid email address is required.' } },
+        { status: 400 }
+      );
+    }
+
     const cleanPhone = (phone || '').trim().replace(/\s+/g, '').replace(/^\+91/, '');
     if (!phone || cleanPhone.length !== 10 || !/^\d{10}$/.test(cleanPhone)) {
       return NextResponse.json(

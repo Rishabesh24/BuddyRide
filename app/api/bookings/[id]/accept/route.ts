@@ -7,7 +7,7 @@ export async function POST(
 ) {
   try {
     const { id } = await context.params;
-    const updated = await rideRepository.updateBookingStatus(id, 'confirmed');
+    const updated = await rideRepository.updateBookingStatus(id, 'accepted');
 
     return NextResponse.json({
       success: true,

@@ -67,3 +67,27 @@ export async function DELETE(
     );
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const body = await request.json();
+
+    const updated = await rideRepository.editRide(id, body);
+    return NextResponse.json({
+      success: true,
+      data: updated,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'EDIT_ERROR', message: error.message },
+      },
+      { status: 400 }
+    );
+  }
+}

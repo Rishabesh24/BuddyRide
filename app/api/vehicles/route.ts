@@ -31,9 +31,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { driverId, type, make, model, year, licensePlate, color, capacity } = body;
 
-    if (!driverId || !licensePlate || !make || !model) {
+    if (!driverId || !type || !make || !model || !licensePlate || capacity === undefined || capacity === null || capacity === '') {
       return NextResponse.json(
-        { success: false, error: { message: 'driverId, make, model, and licensePlate are required' } },
+        { success: false, error: { message: 'Type, make, model, registration (licensePlate), and capacity are required.' } },
+        { status: 400 }
+      );
+    }
+
+    const capNum = Number(capacity);
+    if (isNaN(capNum) || capNum < 1 || capNum > 8) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Vehicle capacity must be between 1 and 8 seats.' } },
         { status: 400 }
       );
     }

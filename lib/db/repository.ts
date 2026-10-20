@@ -46,11 +46,32 @@ export interface IRideRepository {
   getAdminReports(): Promise<ReportItem[]>;
   resolveReport(reportId: string): Promise<void>;
   updateDriverKyc(driverId: string, verified: boolean): Promise<Profile>;
+  reviewDriverKyc(driverId: string, action: 'verified' | 'rejected', reason?: string): Promise<Profile>;
+  suspendUser(userId: string): Promise<Profile>;
+  restoreUser(userId: string): Promise<Profile>;
+  submitReport(report: Omit<ReportItem, 'id' | 'createdAt'>): Promise<ReportItem>;
+  editRide(rideId: string, updates: Partial<Ride>): Promise<Ride>;
 }
 
 // In-Memory state for local/fixture mode with dynamic persistence across the session
 class LocalFixtureRepository implements IRideRepository {
-  private rides: Ride[] = [...SEED_RIDES];
+  private rides: Ride[] = SEED_RIDES.map((r, i) => {
+    const d = new Date();
+    if (i === 13) {
+      // Index 13 is explicitly a past ride to verify past-ride exclusion
+      d.setDate(d.getDate() - 1);
+      d.setHours(10, 0, 0, 0);
+    } else {
+      const dayOffset = Math.floor(i / 4);
+      const hour = 8 + (i % 4) * 3;
+      d.setDate(d.getDate() + dayOffset);
+      d.setHours(hour, 30, 0, 0);
+    }
+    return {
+      ...r,
+      departureTime: d.toISOString(),
+    };
+  });
   private vehicles: Vehicle[] = [...SEED_VEHICLES];
   private users: Profile[] = [...SEED_USERS];
   private bookings: Booking[] = [
@@ -153,9 +174,32 @@ class LocalFixtureRepository implements IRideRepository {
 
   async searchRides(query: SearchQuery): Promise<MatchResult[]> {
     const results: MatchResult[] = [];
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // TC-M2-06: If queried date is in the past, return no upcoming matches
+    if (query.date && query.date < todayStr) {
+      return [];
+    }
 
     for (const ride of this.rides) {
       if (ride.status !== 'scheduled' && ride.status !== 'active') continue;
+
+      const rideDate = new Date(ride.departureTime);
+
+      // TC-M2-06: Past rides are not offered as upcoming rides
+      if (rideDate.getTime() < now.getTime()) {
+        continue;
+      }
+
+      // If a specific date is queried, match that departure date
+      if (query.date) {
+        const rideDateStr = rideDate.toISOString().split('T')[0];
+        if (rideDateStr !== query.date) {
+          continue;
+        }
+      }
+
       const match = evaluateRideCompatibility(query, ride);
       if (match.isCompatible) {
         results.push(match);
@@ -306,21 +350,27 @@ class LocalFixtureRepository implements IRideRepository {
     const ride = this.rides.find((r) => r.id === bookingData.rideId);
     if (!ride) throw new Error('Ride not found');
 
-    if (ride.availableSeats < bookingData.seatsBooked) {
-      throw new Error('Insufficient seats available');
+    // TC-M4-03: Validate seat counts (must be positive and within availability)
+    if (!bookingData.seatsBooked || bookingData.seatsBooked <= 0 || ride.availableSeats < bookingData.seatsBooked) {
+      throw new Error('Insufficient or invalid seat count');
     }
 
     // Generate secure 4-digit start OTP
     const startOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Confirm seat reservation
-    ride.availableSeats -= bookingData.seatsBooked;
+    // TC-M4-01: Default status is 'pending' unless explicitly set to accepted/confirmed
+    const initialStatus: BookingStatus = bookingData.status || 'pending';
+
+    // Only decrement availableSeats if confirmed directly
+    if (initialStatus === 'confirmed' || initialStatus === 'accepted') {
+      ride.availableSeats -= bookingData.seatsBooked;
+    }
 
     const newBooking: Booking = {
       ...bookingData,
       id: `b-${Date.now().toString(36)}`,
       startOtp,
-      status: 'confirmed',
+      status: initialStatus,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ride,
@@ -332,22 +382,10 @@ class LocalFixtureRepository implements IRideRepository {
     this.notifications.push({
       id: `notif-${Date.now().toString(36)}`,
       userId: ride.driverId,
-      title: 'New Confirmed Ride Booking!',
+      title: initialStatus === 'pending' ? 'New Booking Request' : 'New Confirmed Ride Booking!',
       message: `A commuter booked ${bookingData.seatsBooked} seat(s) to ${bookingData.dropoffLocation.address}. OTP: ${startOtp}`,
       type: 'booking_request',
       linkUrl: '/driver',
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    });
-
-    // Notify passenger
-    this.notifications.push({
-      id: `notif-${Date.now().toString(36)}-p`,
-      userId: bookingData.passengerId,
-      title: `Ride Booked! Start OTP: ${startOtp}`,
-      message: `Your ride is confirmed with driver ${ride.driver?.fullName ?? 'Driver'}. Share OTP ${startOtp} when boarding.`,
-      type: 'booking_confirmed',
-      linkUrl: '/bookings',
       isRead: false,
       createdAt: new Date().toISOString(),
     });
@@ -363,16 +401,24 @@ class LocalFixtureRepository implements IRideRepository {
     const booking = this.bookings.find((b) => b.id === bookingId);
     if (!booking) throw new Error('Booking not found');
 
+    // TC-M4-07: Invalid transition from terminal state
+    if (['rejected', 'cancelled', 'completed'].includes(booking.status)) {
+      throw new Error(`Invalid status transition: booking is already in terminal state '${booking.status}'`);
+    }
+
     const ride = this.rides.find((r) => r.id === booking.rideId);
     if (!ride) throw new Error('Associated ride not found');
 
-    if (status === 'confirmed' && booking.status !== 'confirmed') {
+    const isAccepting = status === 'accepted' || status === 'confirmed';
+    const wasAccepted = booking.status === 'accepted' || booking.status === 'confirmed';
+
+    if (isAccepting && !wasAccepted) {
       if (ride.availableSeats < booking.seatsBooked) {
         throw new Error('Insufficient seats remaining');
       }
       ride.availableSeats -= booking.seatsBooked;
     } else if (status === 'cancelled' || status === 'rejected') {
-      if (booking.status === 'confirmed' || booking.status === 'in_progress') {
+      if (wasAccepted || booking.status === 'in_progress') {
         ride.availableSeats += booking.seatsBooked;
       }
       if (reason) booking.cancellationReason = reason;
@@ -380,12 +426,35 @@ class LocalFixtureRepository implements IRideRepository {
 
     booking.status = status;
     booking.updatedAt = new Date().toISOString();
+
+    // Notify passenger
+    this.notifications.push({
+      id: `notif-${Date.now().toString(36)}-status`,
+      userId: booking.passengerId,
+      title: `Booking ${isAccepting ? 'Accepted' : status === 'rejected' ? 'Rejected' : 'Cancelled'}`,
+      message: `Your booking for trip to ${booking.dropoffLocation.city} is now ${status}.`,
+      type: isAccepting ? 'booking_confirmed' : 'booking_rejected',
+      linkUrl: '/bookings',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    });
+
     return booking;
   }
 
   async verifyStartOtp(bookingId: string, otp: string): Promise<{ success: boolean; message: string }> {
     const booking = this.bookings.find((b) => b.id === bookingId);
     if (!booking) return { success: false, message: 'Booking not found' };
+
+    // TC-M4-07: Rejected or cancelled booking cannot be boarded
+    if (booking.status === 'rejected' || booking.status === 'cancelled') {
+      return { success: false, message: `Cannot verify OTP on a ${booking.status} booking.` };
+    }
+
+    // TC-M4-10: Reject empty, malformed, or non-numeric OTP
+    if (!otp || typeof otp !== 'string' || otp.trim().length !== 4 || !/^\d{4}$/.test(otp.trim())) {
+      return { success: false, message: 'OTP must be exactly 4 numeric digits.' };
+    }
 
     if (booking.startOtp !== otp.trim()) {
       return { success: false, message: 'Invalid 4-digit OTP. Please ask rider for correct PIN.' };
@@ -557,9 +626,9 @@ class LocalFixtureRepository implements IRideRepository {
     const occupancyRate = totalCapacity > 0 ? (occupiedSeats / totalCapacity) * 100 : 0;
 
     return {
-      activeUsers: this.users.length + 340,
+      activeUsers: this.users.length,
       activeRides: this.rides.filter((r) => r.status === 'scheduled' || r.status === 'in_progress').length,
-      totalBookings: this.bookings.length + 148,
+      totalBookings: this.bookings.length,
       occupancyRatePercent: Math.round(occupancyRate * 10) / 10,
       flaggedReportsCount: this.reports.filter((r) => r.status === 'open').length,
     };
@@ -574,13 +643,137 @@ class LocalFixtureRepository implements IRideRepository {
     if (report) report.status = 'resolved';
   }
 
+  async submitReport(report: Omit<ReportItem, 'id' | 'createdAt'>): Promise<ReportItem> {
+    if (!report.reason || report.reason.trim().length === 0) {
+      throw new Error('Report description cannot be empty');
+    }
+    if (report.reason.length > 1000) {
+      throw new Error('Report description exceeds maximum 1000 characters');
+    }
+    if (!report.targetId || report.targetId.trim().length === 0) {
+      throw new Error('Valid target ID is required');
+    }
+
+    // Sanitize reason against stored script tags
+    const cleanReason = report.reason.replace(/<[^>]*>?/gm, '').trim();
+
+    const newReport: ReportItem = {
+      ...report,
+      id: `rep-${Date.now().toString(36)}`,
+      reason: cleanReason,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+    };
+    this.reports.unshift(newReport);
+    return newReport;
+  }
+
   async updateDriverKyc(driverId: string, verified: boolean): Promise<Profile> {
     const driver = this.users.find((u) => u.id === driverId);
     if (!driver) throw new Error('Driver not found');
     driver.isKycVerified = verified;
+    driver.kycStatus = verified ? 'verified' : 'rejected';
     return driver;
+  }
+
+  async reviewDriverKyc(driverId: string, action: 'verified' | 'rejected' | 'pending' | 'reset', reason?: string): Promise<Profile> {
+    const driver = this.users.find((u) => u.id === driverId);
+    if (!driver) throw new Error('Driver not found');
+
+    if (action !== 'pending' && action !== 'reset' && driver.kycStatus === action) {
+      throw new Error(`Policy violation: Driver KYC is already ${action}`);
+    }
+
+    if (action === 'pending' || action === 'reset') {
+      driver.kycStatus = 'pending';
+      driver.isKycVerified = false;
+      driver.kycRejectionReason = undefined;
+      return driver;
+    }
+
+    driver.kycStatus = action;
+    driver.isKycVerified = action === 'verified';
+    if (reason) driver.kycRejectionReason = reason;
+
+    return driver;
+  }
+
+  async suspendUser(userId: string): Promise<Profile> {
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found');
+    user.isSuspended = true;
+
+    const seed = SEED_USERS.find((u) => u.id === userId);
+    if (seed) seed.isSuspended = true;
+
+    const reg = getRegisteredAccountById(userId);
+    if (reg) reg.profile.isSuspended = true;
+
+    const suspendedIds: Set<string> = (globalThis as any).__routeshare_suspended_user_ids || new Set();
+    suspendedIds.add(userId);
+    if (user.email) suspendedIds.add(user.email.toLowerCase());
+    if (userId === 'u-karthik-sedan') suspendedIds.add('driver@routeshare.in');
+    (globalThis as any).__routeshare_suspended_user_ids = suspendedIds;
+
+    return user;
+  }
+
+  async restoreUser(userId: string): Promise<Profile> {
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) throw new Error('User not found');
+    user.isSuspended = false;
+
+    const seed = SEED_USERS.find((u) => u.id === userId);
+    if (seed) seed.isSuspended = false;
+
+    const reg = getRegisteredAccountById(userId);
+    if (reg) reg.profile.isSuspended = false;
+
+    const suspendedIds: Set<string> = (globalThis as any).__routeshare_suspended_user_ids || new Set();
+    suspendedIds.delete(userId);
+    if (user.email) suspendedIds.delete(user.email.toLowerCase());
+    if (userId === 'u-karthik-sedan') suspendedIds.delete('driver@routeshare.in');
+    (globalThis as any).__routeshare_suspended_user_ids = suspendedIds;
+
+    return user;
+  }
+
+  async editRide(rideId: string, updates: Partial<Ride>): Promise<Ride> {
+    const ride = this.rides.find((r) => r.id === rideId);
+    if (!ride) throw new Error('Ride not found');
+
+    if (updates.departureTime && new Date(updates.departureTime).getTime() < Date.now() - 60000) {
+      throw new Error('Departure time cannot be in the past');
+    }
+
+    if (updates.origin && updates.destination) {
+      if (
+        updates.origin.address === updates.destination.address ||
+        (updates.origin.latitude === updates.destination.latitude && updates.origin.longitude === updates.destination.longitude)
+      ) {
+        throw new Error('Origin and destination cannot be identical');
+      }
+    }
+
+    if (updates.totalSeats !== undefined && updates.totalSeats <= 0) {
+      throw new Error('Published seat count must be positive');
+    }
+
+    Object.assign(ride, updates);
+    return ride;
   }
 }
 
-// Singleton repository provider
-export const rideRepository: IRideRepository = new LocalFixtureRepository();
+// Singleton repository provider attached to globalThis for Next.js cross-chunk consistency
+const globalForRepo = globalThis as unknown as {
+  routeshare_repository?: IRideRepository;
+};
+
+export const rideRepository: IRideRepository =
+  globalForRepo.routeshare_repository ?? new LocalFixtureRepository();
+
+if (globalForRepo.routeshare_repository) {
+  Object.setPrototypeOf(globalForRepo.routeshare_repository, LocalFixtureRepository.prototype);
+} else {
+  globalForRepo.routeshare_repository = rideRepository;
+}

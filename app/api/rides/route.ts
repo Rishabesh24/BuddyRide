@@ -72,6 +72,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // TC-M5-09: Invalid route or same endpoints
+    if (!body.origin?.address || !body.destination?.address) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'MISSING_ENDPOINT', message: 'Both origin and destination endpoints are required.' },
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      body.origin.address.trim().toLowerCase() === body.destination.address.trim().toLowerCase() ||
+      (body.origin.latitude &&
+        body.destination.latitude &&
+        body.origin.latitude === body.destination.latitude &&
+        body.origin.longitude === body.destination.longitude)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'IDENTICAL_ENDPOINTS', message: 'Origin and destination cannot be identical.' },
+        },
+        { status: 400 }
+      );
+    }
+
+    // TC-M5-07: Reject past departure date/time
+    const depTime = new Date(body.departureTime).getTime();
+    if (isNaN(depTime) || depTime < Date.now() - 60000) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_DEPARTURE_TIME',
+            message: 'Departure date and time cannot be in the past.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Resolve driver dynamically
     const driverId = body.driverId || SEED_USERS[0].id;
     let driver = await rideRepository.getUserById(driverId);
@@ -94,6 +136,22 @@ export async function POST(request: NextRequest) {
       vehicle = driverVehicles[0] || SEED_VEHICLES[0];
     }
 
+    // TC-M5-08: Validate ride seats vs vehicle capacity
+    const totalSeats = Number(body.totalSeats);
+    const vehicleCap = vehicle?.capacity || 6;
+    if (isNaN(totalSeats) || totalSeats <= 0 || totalSeats > vehicleCap) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_SEAT_COUNT',
+            message: `Published seat count must be positive and cannot exceed vehicle capacity (${vehicleCap}).`,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     const newRide = await rideRepository.createRide({
       driverId: driver.id,
       driver,
@@ -103,8 +161,8 @@ export async function POST(request: NextRequest) {
       destination: body.destination,
       waypoints: body.waypoints || [],
       departureTime: body.departureTime,
-      totalSeats: Number(body.totalSeats),
-      availableSeats: Number(body.totalSeats),
+      totalSeats,
+      availableSeats: totalSeats,
       basePricePerKm: Number(body.basePricePerKm || 18.0),
       totalDistanceKm: Number(body.totalDistanceKm || 65.0),
       estimatedDurationMinutes: Number(body.estimatedDurationMinutes || 55),

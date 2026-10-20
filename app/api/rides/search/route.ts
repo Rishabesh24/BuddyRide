@@ -44,6 +44,56 @@ export async function GET(request: NextRequest) {
       ? parseFloat(searchParams.get('maxDetourKm')!)
       : undefined;
 
+    // Coordinate boundaries check: latitude [-90, 90], longitude [-180, 180]
+    if (
+      originLat < -90 ||
+      originLat > 90 ||
+      originLng < -180 ||
+      originLng > 180 ||
+      destLat < -90 ||
+      destLat > 90 ||
+      destLng < -180 ||
+      destLng > 180
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_COORDINATES',
+            message: 'Coordinates out of bounds. Latitude must be between -90 and 90, and longitude between -180 and 180.',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Origin equals destination check
+    if (
+      (originLat === destLat && originLng === destLng) ||
+      (originText && destText && originText.trim().toLowerCase() === destText.trim().toLowerCase())
+    ) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalMatches: 0,
+          results: [],
+          message: 'Origin and destination cannot be identical.',
+        },
+      });
+    }
+
+    // Seat count boundary check (valid range 1 to 6)
+    if (isNaN(seats) || seats <= 0 || seats > 6) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalMatches: 0,
+          results: [],
+          message: 'Requested seat count must be between 1 and 6.',
+        },
+      });
+    }
+
     const query: SearchQuery = {
       originLat,
       originLng,

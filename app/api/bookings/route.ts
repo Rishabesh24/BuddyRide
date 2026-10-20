@@ -42,13 +42,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (body.seatsBooked !== undefined && Number(body.seatsBooked) <= 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'BAD_REQUEST', message: 'Requested seats must be greater than zero' },
+        },
+        { status: 400 }
+      );
+    }
+
+    const requestedSeats = Number(body.seatsBooked ?? 1);
     const passenger = SEED_USERS[4]; // Default passenger session
 
     const newBooking = await rideRepository.createBooking({
       rideId: body.rideId,
       passengerId: passenger.id,
       passenger,
-      seatsBooked: Number(body.seatsBooked || 1),
+      seatsBooked: requestedSeats,
       pickupLocation: body.pickupLocation,
       dropoffLocation: body.dropoffLocation,
       segmentDistanceKm: Number(body.segmentDistanceKm || 25),

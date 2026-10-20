@@ -25,6 +25,8 @@ export interface Profile {
   isOnline?: boolean;
   drivingLicenseNo?: string;
   isKycVerified?: boolean;
+  kycStatus?: 'pending' | 'verified' | 'rejected';
+  kycRejectionReason?: string;
   todayEarnings?: number;
   createdAt: string;
 }
@@ -90,7 +92,7 @@ export interface Ride {
   createdAt: string;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'rejected' | 'cancelled' | 'completed';
+export type BookingStatus = 'pending' | 'accepted' | 'confirmed' | 'in_progress' | 'rejected' | 'cancelled' | 'completed';
 
 export interface Booking {
   id: string;

@@ -10,9 +10,9 @@ export async function POST(
     const body = await request.json();
     const otp = body?.otp;
 
-    if (!otp) {
+    if (!otp || typeof otp !== 'string' || otp.trim().length !== 4 || !/^\d{4}$/.test(otp.trim())) {
       return NextResponse.json(
-        { success: false, error: { code: 'OTP_REQUIRED', message: '4-digit OTP is required' } },
+        { success: false, error: { code: 'INVALID_OTP_FORMAT', message: 'OTP must be exactly 4 numeric digits.' } },
         { status: 400 }
       );
     }
