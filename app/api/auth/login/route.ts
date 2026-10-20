@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
                 phoneNumber: profileData.phone_number,
                 avatarUrl: profileData.avatar_url,
                 role: profileData.role,
+                ratingAverage: Number(profileData.rating_average ?? profileData.ratingAverage ?? 5.0),
+                ratingCount: Number(profileData.rating_count ?? profileData.ratingCount ?? 0),
                 drivingLicenseNo: profileData.driving_license_no,
                 isKycVerified: profileData.is_kyc_verified,
                 todayEarnings: Number(profileData.today_earnings || 0),
