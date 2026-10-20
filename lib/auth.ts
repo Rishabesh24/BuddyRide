@@ -66,12 +66,16 @@ export function registerAccount(data: {
   id?: string;
 }): { success: boolean; session?: AuthSession; message?: string } {
   const cleanEmail = data.email.trim().toLowerCase();
-  const cleanPhone = data.phone.trim().replace(/\s+/g, '');
+  const cleanPhone = data.phone.trim().replace(/\s+/g, '').replace(/^\+91/, '');
   const cleanName = data.fullName.trim();
   const cleanPass = data.password.trim();
 
   if (!cleanEmail || !cleanPass || !cleanName) {
     return { success: false, message: 'Name, email, and password are required.' };
+  }
+
+  if (!data.phone || cleanPhone.length !== 10 || !/^\d{10}$/.test(cleanPhone)) {
+    return { success: false, message: 'Phone number must be exactly 10 characters.' };
   }
 
   if (cleanPass.length < 6) {

@@ -34,12 +34,25 @@ function SignupForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
+    // Validate phone number (must be exactly 10 characters / digits)
+    const cleanPhone = phone.trim().replace(/\s+/g, "").replace(/^\+91/, "");
+    if (!phone.trim() || cleanPhone.length !== 10 || !/^\d{10}$/.test(cleanPhone)) {
+      setErrorMsg("Phone number must be exactly 10 characters.");
+      return;
+    }
+
+    // Validate password (minimum 6 characters)
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters.");
+      return;
+    }
+
     setIsLoading(true);
 
     const res = await signup({
       fullName,
       email,
-      phone,
+      phone: cleanPhone,
       password,
       role: selectedRole,
     });
@@ -157,33 +170,37 @@ function SignupForm() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-commuter-700 mb-1.5 flex items-center">
+              <label htmlFor="signup-phone" className="block text-xs font-bold uppercase tracking-wider text-commuter-700 mb-1.5 flex items-center">
                 <Phone className="w-3.5 h-3.5 text-commuter-400 mr-1.5" />
-                Mobile Number (+91)
+                Mobile Number (10 digits)
               </label>
               <input
+                id="signup-phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 98409 88123"
+                placeholder="Enter 10-digit mobile number"
                 className="w-full h-11 px-3.5 rounded-xl border border-commuter-200 text-sm font-semibold text-commuter-900 focus:outline-none focus:border-mobility-600 focus:ring-2 focus:ring-mobility-100"
                 required
               />
+              <p className="text-[11px] text-commuter-500 mt-1">Must be exactly 10 characters.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-commuter-700 mb-1.5 flex items-center">
+              <label htmlFor="signup-password" className="block text-xs font-bold uppercase tracking-wider text-commuter-700 mb-1.5 flex items-center">
                 <Lock className="w-3.5 h-3.5 text-commuter-400 mr-1.5" />
                 Create Password
               </label>
               <input
+                id="signup-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimum 8 characters"
+                placeholder="Minimum 6 characters"
                 className="w-full h-11 px-3.5 rounded-xl border border-commuter-200 text-sm font-semibold text-commuter-900 focus:outline-none focus:border-mobility-600 focus:ring-2 focus:ring-mobility-100"
                 required
               />
+              <p className="text-[11px] text-commuter-500 mt-1">Must be at least 6 characters.</p>
             </div>
 
             <Button

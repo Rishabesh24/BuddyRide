@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const cleanPhone = (phone || '').trim().replace(/\s+/g, '').replace(/^\+91/, '');
+    if (!phone || cleanPhone.length !== 10 || !/^\d{10}$/.test(cleanPhone)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Phone number must be exactly 10 characters.' } },
+        { status: 400 }
+      );
+    }
+
     if (password.length < 6) {
       return NextResponse.json(
         { success: false, error: { message: 'Password must be at least 6 characters.' } },
